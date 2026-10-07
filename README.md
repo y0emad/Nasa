@@ -12,12 +12,10 @@ and historical launches.
 - View upcoming launches and mission history, and abort scheduled launches
 - Habitable planet data loaded from the NASA Kepler exoplanet dataset
 - Past launch data from the SpaceX API
-- Secure HTTPS server with Helmet security headers
-- Google OAuth 2.0 login (Passport.js) with cookie-based sessions
 - Automated install, build and tests with GitHub Actions
 
 ## Tech Stack
-Node.js, Express, TypeScript, React, MongoDB, Passport.js, Jest
+Node.js, Express, TypeScript, React, MongoDB, Jest
 
 ## Getting Started
 1. Clone the repo and run `npm install` in `client` and `server`
