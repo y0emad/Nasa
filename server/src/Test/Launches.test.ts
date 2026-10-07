@@ -1,40 +1,54 @@
-import { afterAll, describe,expect,test } from '@jest/globals';
+import { afterAll, describe, expect, test } from '@jest/globals';
 import request from 'supertest';
-import Server  from '../server';
 import mongoose from 'mongoose';
+import Server from '../server';
 
-const {app} = new Server();
-describe('Get /launches/get', () => {
-  test('should return a list of launches', async () => {
-    const response = await request(app) 
-      .get('/launches/get')
-      .expect(200).expect('Content-Type', /json/);
-      
-  })
-});
-describe('Post /launches/create', () => {
-  test('should create a new launch and return it', async () => {
-    const allDataLaunch = {
-        mission: "Kepler Exploration",
-        rocket: "Falcon 9",
-        launchDate: "2025-12-31",
-        destination: "TRAPPIST-1d",
-        customers: ["SpaceX", "NASA"],
-        upcoming: true,
-        success: true
-      }
+const { app } = new Server();
+
+const futureDate = new Date();
+futureDate.setFullYear(futureDate.getFullYear() + 1);
+
+const TEST_MISSION = 'Jest Test Mission';
+
+describe('GET /launches/get', () => {
+  test('returns a list of launches', async () => {
     const response = await request(app)
-      .post('/launches/create')
-      .send(allDataLaunch)
-      .expect(201)
+      .get('/launches/get')
+      .expect(200)
       .expect('Content-Type', /json/);
-      const allDataNewLaunch = {
-        ...allDataLaunch,
-        launchDate: new Date(allDataLaunch.launchDate).toISOString(),
-      };
-    expect(response.body).toMatchObject(allDataNewLaunch);
+
+    expect(Array.isArray(response.body)).toBe(true);
   });
 });
+
+describe('POST /launches/create', () => {
+  const launch = {
+    mission: TEST_MISSION,
+    rocket: 'Falcon 9',
+    launchDate: futureDate.toISOString(),
+    destination: 'TRAPPIST-1d',
+    customers: ['SpaceX', 'NASA'],
+    upcoming: true,
+    success: true,
+  };
+
+  test('creates a new launch and returns it', async () => {
+    const response = await request(app)
+      .post('/launches/create')
+      .send(launch)
+      .expect(201)
+      .expect('Content-Type', /json/);
+
+    expect(response.body).toMatchObject(launch);
+  });
+
+ 
+});
+
 afterAll(async () => {
+  // Clean up what the tests created (adjust the collection name to yours)
+  await mongoose.connection
+    .collection('launches')
+    .deleteMany({ mission: TEST_MISSION });
   await mongoose.connection.close();
 });
