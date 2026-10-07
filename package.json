@@ -1,0 +1,18 @@
+{
+  "name": "nasaproject",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "watch": "concurrently  \"npm start --prefix client\" \"npm run dev --prefix server\"",
+    "test": "concurrently  \"npm test --prefix client\" \"npm test --prefix server\"",
+    "install": "concurrently  \"npm i --prefix client\" \"npm i --prefix server\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+   "concurrently": "^9.0.0"
+  }
+}
