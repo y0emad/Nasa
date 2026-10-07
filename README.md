@@ -1,7 +1,5 @@
 # NASA Mission Control
 
-![CI](https://github.com/y0emad/Nasa/actions/workflows/Nasa.yml/badge.svg)
-
 A full-stack web app for planning and tracking space missions. Pick a habitable
 exoplanet from NASA's Kepler data, schedule a launch, and view upcoming and past missions.
 
