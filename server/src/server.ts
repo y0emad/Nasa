@@ -1,15 +1,19 @@
 import cors from 'cors';
 import express from 'express';
 import mongoose from 'mongoose';
+import path from 'path';
 import PlanetsRouter from './router/PlanetsRouter';
 import LaunchRouter from './router/LaunchRouter';
 import {loadLaunchData , loadPlanetsData} from './middleWare/middleWare';
+
+const clientBuild = path.join(__dirname, '..', 'public');
 class server {
  
  public app: express.Application = express();
   constructor() {
     this.setConfig();
     this.routes();
+    this.serveClient();
     this.error404Handler();
     
   }
@@ -17,6 +21,7 @@ class server {
     this.middlewares();
     this.connectToDB()
     this.loadData() }
+    
 
 private middlewares(): void {
   this.app.use(cors({ origin: process.env.CORS_API_ORIGIN }));
@@ -43,11 +48,21 @@ private async  loadData() {
     this.app.use('/launches', LaunchRouter);
     
   }
+  private serveClient() {
+  
+    this.app.get('/', (req, res) => res.redirect('/launch'));
+
+    this.app.use(express.static(clientBuild));
+  }
 
   error404Handler() {
     this.app.use((req, res) => {
+      if (req.method === 'GET' && req.accepts('html')) {
+        return res.sendFile(path.join(clientBuild, 'index.html'));
+      }
       res.status(404).json({ msg: 'Route not found' });
-    });}
+    });
+  }
 }
 
 export default server;

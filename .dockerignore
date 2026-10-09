@@ -1,0 +1,19 @@
+**/node_modules
+**/dist
+**/build
+**/*.test.ts
+**/__tests__
+
+**/.env
+**/.env.*
+# **/*.key
+# **/*.cert
+
+.git
+.gitignore
+.github
+
+Dockerfile
+.dockerignore
+README.md
+npm-debug.log
