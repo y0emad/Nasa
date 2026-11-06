@@ -3,27 +3,32 @@ import Launch from "../models/Launch";
 import fs from "fs";
 import path from "path";
 import csv from "csv-parser";
-import Planet from "../models/Plantes";
+import Planet from "../models/Planet";
 
 interface KOIRow {
   kepler_name: string;
   koi_disposition: string;
   koi_insol: string;
- 
 }
+
 export async function loadLaunchData(): Promise<void> {
   try {
-   
-    const firstLaunch = await Launch.findOne({ flightNumber: 1 });
-    if (firstLaunch) {
+    if ((await Launch.countDocuments()) > 0) {
       console.log("Launch data already loaded!");
       return;
     }
 
+    const apiUrl = process.env.GET_LAUNCHES_API;
+    if (!apiUrl) {
+      console.warn("GET_LAUNCHES_API is not set, skipping the launch data import.");
+      return;
+    }
+
     console.log("Fetching launch data from SpaceDevs API...");
-    const response = await axios.get(process.env.GET_LAUNCHES_API!,{
-      params: { limit: 100 }
-    })
+    const response = await axios.get(apiUrl, {
+      params: { limit: 100 },
+      timeout: 15000,
+    });
 
     const launchDocs = response.data.results;
 
@@ -91,11 +96,10 @@ export async function loadPlanetsData(filePath: string): Promise<void> {
     const habitablePlanets = await parseCSV(resolvedPath);
    
     
-    const planets = habitablePlanets
-    .filter((row) => row.kepler_name?.trim())
-    .map((row) => ({
-      kepler_name: row.kepler_name.trim(),
-    }));
+    const names = new Set(
+      habitablePlanets.map((row) => row.kepler_name?.trim()).filter((name): name is string => Boolean(name))
+    );
+    const planets = [...names].map((kepler_name) => ({ kepler_name }));
     if (planets.length > 0) {
        await Planet.insertMany(planets, { ordered: false });
       
