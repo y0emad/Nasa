@@ -1,20 +1,17 @@
-import { model, Schema } from "mongoose";
+import { model, Schema } from 'mongoose';
 
 const planetSchema = new Schema(
   {
-  
-
     kepler_name: {
       type: String,
-      require: true,
+      required: true,
+      unique: true,
     },
-   
   },
   {
-    timestamps: true, 
+    timestamps: true,
   }
 );
-
 
 const Planet = model('Planet', planetSchema);
 
