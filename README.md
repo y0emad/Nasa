@@ -47,8 +47,17 @@ npm install --prefix server
 Create `server/.env`:
 
 ```
-MONGO_URL=mongodb://localhost/nasa
+MONGO_URI=mongodb://localhost:27017/nasa
+GET_LAUNCHES_API=https://ll.thespacedevs.com/2.3.0/launches
 ```
+
+| Variable | Required | What it does |
+| --- | --- | --- |
+| `MONGO_URI` | yes | MongoDB connection string |
+| `GET_LAUNCHES_API` | no | Where to import past launches from on the first start. Skipped when empty |
+| `CSV_DIR` | no | Path to the Kepler CSV. Defaults to `src/data/kepler_data_cleaned.csv` |
+| `CORS_API_ORIGIN` | no | Only needed when the client runs on another origin |
+| `PORT` | no | Defaults to `8000` |
 
 `.env` is git-ignored and must never be committed.
 
@@ -62,18 +71,25 @@ npm run dev --prefix server
 npm start --prefix client
 ```
 
-Open the URL printed in the terminal (the React dev server usually runs on `http://localhost:3000`).
+Open http://localhost:3000. The React dev server forwards API calls to the server on port 8000.
 
 ## Scripts
 
 | Command | Description |
 | --- | --- |
 | `npm run dev --prefix server` | Start the server with nodemon |
-| `npm start --prefix server` | Start the server |
+| `npm run build --prefix server` | Compile the server to `server/dist` |
+| `npm start --prefix server` | Run the compiled server |
 | `npm start --prefix client` | Start the React dev server |
-| `npm run build --prefix client` | Build the frontend |
-| `npm test --prefix server` | Run server tests |
+| `npm run build --prefix client` | Build the frontend into `server/public` |
+| `npm test --prefix server` | Run the server tests (needs a MongoDB, `MONGO_URI`) |
 
-## Continuous Integration
+## CI/CD
 
-Every push and pull request to `main` runs install, build and tests on Node 20 and 22.
+Every pull request typechecks and builds both apps, runs the tests against MongoDB on Node 20 and 22,
+and builds the Docker image. On every merge to `main` the image is also pushed to Docker Hub
+(`yousefemad/nasa`), and the server picks it up within two minutes
+([deploy/update.sh](deploy/update.sh)).
+
+The image is multi-stage: it ships only the compiled server, production dependencies, the React build
+and the Kepler CSV.
