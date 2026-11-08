@@ -1,0 +1,209 @@
+.launch-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: #000207;
+  font-family: "Titillium Web", sans-serif;
+  color: #a1ecfb;
+  animation: launch-fade 0.4s ease-out;
+}
+
+@keyframes launch-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.launch-hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  text-shadow: 0 0 8px rgba(0, 0, 0, 0.9);
+}
+
+.launch-top {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.launch-mission {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 14px;
+}
+
+.launch-mission strong {
+  font-size: 20px;
+  color: #e6fbff;
+  overflow-wrap: anywhere;
+}
+
+.launch-label {
+  font-family: "Source Code Pro", monospace;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+
+.launch-close {
+  pointer-events: auto;
+  flex-shrink: 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  color: #a1ecfb;
+  background: rgba(0, 20, 26, 0.6);
+  border: 1px solid rgba(161, 236, 251, 0.5);
+  padding: 6px 12px;
+}
+
+.launch-close:hover {
+  background: rgba(161, 236, 251, 0.15);
+}
+
+.launch-clock {
+  margin-top: 4vh;
+  font-family: "Source Code Pro", monospace;
+  font-size: clamp(40px, 9vw, 84px);
+  font-weight: 600;
+  letter-spacing: 4px;
+  color: #e6fbff;
+}
+
+.launch-clock.is-hold {
+  color: #ffd166;
+  animation: launch-blink 1s steps(2) infinite;
+}
+
+.launch-clock.is-scrubbed,
+.launch-status.is-scrubbed {
+  color: #ff5a5a;
+}
+
+@keyframes launch-blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.launch-status {
+  font-size: clamp(14px, 3.6vw, 20px);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.launch-telemetry {
+  margin-top: auto;
+  display: flex;
+  gap: 32px;
+  font-family: "Source Code Pro", monospace;
+}
+
+.launch-telemetry div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.launch-telemetry strong {
+  font-size: clamp(18px, 4.5vw, 26px);
+  color: #e6fbff;
+}
+
+.launch-card {
+  pointer-events: auto;
+  margin-top: auto;
+  width: min(460px, 100%);
+  box-sizing: border-box;
+  padding: 18px 20px;
+  background: rgba(0, 18, 24, 0.85);
+  border: 1px solid rgba(161, 236, 251, 0.55);
+  box-shadow: 0 0 24px rgba(46, 198, 230, 0.25);
+  animation: launch-rise 0.5s ease-out;
+}
+
+.launch-telemetry + .launch-card {
+  margin-top: 16px;
+}
+
+.launch-card.is-scrubbed {
+  border-color: rgba(255, 90, 90, 0.7);
+  box-shadow: 0 0 24px rgba(255, 90, 90, 0.2);
+}
+
+.launch-card h3 {
+  margin: 0 0 8px;
+  font-size: 22px;
+  color: #e6fbff;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.launch-card.is-scrubbed h3 {
+  color: #ff8080;
+}
+
+.launch-card p,
+.launch-card ul {
+  margin: 0 0 14px;
+  font-size: 15px;
+}
+
+.launch-card ul {
+  padding-left: 18px;
+}
+
+@keyframes launch-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+.launch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.launch-actions button {
+  cursor: pointer;
+  font: inherit;
+  font-size: 15px;
+  padding: 8px 16px;
+  color: #000909;
+  background: #a1ecfb;
+  border: 1px solid #a1ecfb;
+}
+
+.launch-actions button.secondary {
+  color: #a1ecfb;
+  background: transparent;
+}
+
+
+@media (max-width: 600px) {
+  .launch-mission strong {
+    font-size: 17px;
+  }
+
+  .launch-telemetry {
+    gap: 20px;
+  }
+
+  .launch-actions button {
+    flex: 1 1 auto;
+  }
+}

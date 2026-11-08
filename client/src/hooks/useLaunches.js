@@ -4,11 +4,23 @@ import {
   httpGetLaunches,
   httpSubmitLaunch,
   httpAbortLaunch,
-} from './requests';
+} from "./requests";
+
+const readErrors = async (response) => {
+  try {
+    const body = await response.json();
+    if (Array.isArray(body.errors)) return body.errors;
+    if (body.msg) return [body.msg];
+  } catch {
+    return ["Could not reach mission control. Check your connection and try again."];
+  }
+  return ["The launch was rejected by mission control."];
+};
 
 function useLaunches(onSuccessSound, onAbortSound, onFailureSound) {
   const [launches, saveLaunches] = useState([]);
   const [isPendingLaunch, setPendingLaunch] = useState(false);
+  const [launchRun, setLaunchRun] = useState(null);
 
   const getLaunches = useCallback(async () => {
     const fetchedLaunches = await httpGetLaunches();
@@ -21,37 +33,37 @@ function useLaunches(onSuccessSound, onAbortSound, onFailureSound) {
 
   const submitLaunch = useCallback(async (e) => {
     e.preventDefault();
-    setPendingLaunch(true);
     const data = new FormData(e.target);
-    const launchDate = new Date(data.get("launch-day"));
-    const mission = data.get("mission-name");
-    const rocket = data.get("rocket-name");
-    const destination = data.get("planets-selector");
-    const response = await httpSubmitLaunch({
-      launchDate,
-      mission,
-      rocket,
-      destination,
-    });
+    const launch = {
+      launchDate: new Date(data.get("launch-day")),
+      mission: data.get("mission-name"),
+      rocket: data.get("rocket-name"),
+      destination: data.get("planets-selector"),
+    };
 
-    const success = response.ok;
-    if (success) {
+    setPendingLaunch(true);
+    setLaunchRun({ id: Date.now(), ...launch, status: "pending" });
+
+    const response = await httpSubmitLaunch(launch);
+
+    if (response.ok) {
+      const created = await response.json().catch(() => ({}));
+      setLaunchRun((run) => run && { ...run, status: "success", flightNumber: created.flightNumber });
+      e.target.reset?.();
       getLaunches();
-      setTimeout(() => {
-        setPendingLaunch(false);
-        onSuccessSound();
-      }, 800);
     } else {
-      setPendingLaunch(false);
-      onFailureSound();
+      const errors = await readErrors(response);
+      setLaunchRun((run) => run && { ...run, status: "failed", errors });
     }
-  }, [getLaunches, onSuccessSound, onFailureSound]);
+    setPendingLaunch(false);
+  }, [getLaunches]);
+
+  const closeLaunchRun = useCallback(() => setLaunchRun(null), []);
 
   const abortLaunch = useCallback(async (id) => {
     const response = await httpAbortLaunch(id);
 
-    const success = response.ok;
-    if (success) {
+    if (response.ok) {
       getLaunches();
       onAbortSound();
     } else {
@@ -64,6 +76,10 @@ function useLaunches(onSuccessSound, onAbortSound, onFailureSound) {
     isPendingLaunch,
     submitLaunch,
     abortLaunch,
+    launchRun,
+    closeLaunchRun,
+    onLaunchSuccessSound: onSuccessSound,
+    onLaunchFailureSound: onFailureSound,
   };
 }
 

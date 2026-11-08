@@ -123,6 +123,14 @@ const styles = (theme) => ({
     gap: 8,
     alignItems: "center",
   },
+  credit: {
+    fontSize: 11,
+    opacity: 0.6,
+    margin: "14px 0 0",
+    "& a": {
+      color: theme.color.content,
+    },
+  },
   toggle: {
     cursor: "pointer",
     fontSize: 13,
@@ -345,6 +353,13 @@ const SolarSystem = ({ classes, entered, sounds }) => {
                   Labels
                 </label>
               </div>
+              <p className={classes.credit}>
+                Planet images:{" "}
+                <a href="https://www.solarsystemscope.com/textures/" target="_blank" rel="noreferrer">
+                  Solar System Scope
+                </a>{" "}
+                (CC BY 4.0). Data: NASA Planetary Fact Sheet.
+              </p>
             </div>
           </div>
         </Frame>

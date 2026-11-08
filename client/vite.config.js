@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-const api = "http://localhost:8000";
+const api = process.env.API_PROXY || "http://localhost:8000";
 
 export default defineConfig({
   plugins: [react()],
@@ -15,9 +15,6 @@ export default defineConfig({
       "/launches/": api,
       "/solar-system/": api,
     },
-  },
-  worker: {
-    format: "es",
   },
   build: {
     outDir: "../server/public",

@@ -1,0 +1,117 @@
+html,
+body {
+  margin: 0;
+  overflow-x: hidden;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+input,
+select {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.responsive-table td {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 700px) {
+  .responsive-table,
+  .responsive-table tbody,
+  .responsive-table tr,
+  .responsive-table td {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .responsive-table {
+    table-layout: auto !important;
+  }
+
+  .responsive-table thead {
+    display: none;
+  }
+
+  .responsive-table tr {
+    border: 1px solid rgba(161, 236, 251, 0.25);
+    background: rgba(0, 30, 36, 0.35);
+    margin-bottom: 10px;
+    padding: 6px 12px;
+  }
+
+  .responsive-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+    padding: 5px 0 !important;
+    border: none !important;
+    text-align: right;
+    font-size: 14px;
+  }
+
+  .responsive-table td::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    text-align: left;
+    opacity: 0.6;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+}
+
+.launch-form {
+  display: inline-grid;
+  grid-template-columns: auto minmax(0, 260px);
+  gap: 10px 20px;
+  align-items: center;
+}
+
+.launch-form input,
+.launch-form select {
+  width: 100%;
+}
+
+@media (max-width: 600px) {
+  .launch-form {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 4px;
+    width: 100%;
+  }
+
+  .launch-form label {
+    margin-top: 10px;
+    font-size: 14px;
+    opacity: 0.85;
+  }
+
+  .launch-form input,
+  .launch-form select {
+    font-size: 16px;
+    padding: 8px;
+  }
+
+  .launch-form > span {
+    margin-top: 16px;
+  }
+}
+
+.launch-loading {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000207;
+  color: #a1ecfb;
+  font-family: "Source Code Pro", monospace;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}

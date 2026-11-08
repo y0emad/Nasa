@@ -29,18 +29,18 @@ const Upcoming = props => {
     return launches?.filter((launch) => launch.upcoming)
       .map((launch) => {
         return <tr key={String(launch.flightNumber)}>
-          <td>
+          <td data-label="Abort">
             <Clickable style={{color:"red"}}>
               <Link className={classes.link} onClick={() => abortLaunch(launch.flightNumber)}>
                 ✖
               </Link>
             </Clickable>
           </td>
-          <td>{launch.flightNumber}</td>
-          <td>{new Date(launch.launchDate).toDateString()}</td>
-          <td>{launch.mission}</td>
-          <td>{launch.rocket}</td>
-          <td>{launch.destination}</td>
+          <td data-label="No.">{launch.flightNumber}</td>
+          <td data-label="Date">{new Date(launch.launchDate).toDateString()}</td>
+          <td data-label="Mission">{launch.mission}</td>
+          <td data-label="Rocket">{launch.rocket}</td>
+          <td data-label="Destination">{launch.destination}</td>
         </tr>;
       });
   }, [launches, abortLaunch, classes.link]);
@@ -49,7 +49,7 @@ const Upcoming = props => {
     <Paragraph>Upcoming missions including both SpaceX launches and newly scheduled Zero to Mastery rockets.</Paragraph>
     <Words animate>Warning! Clicking on the ✖ aborts the mission.</Words>
     <Table animate show={entered}>
-      <table style={{tableLayout: "fixed"}}>
+      <table className="responsive-table" style={{tableLayout: "fixed"}}>
         <thead>
           <tr>
             <th style={{width: "3rem"}}></th>

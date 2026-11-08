@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState } from "react";
-import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { Frame, Loading, withSounds, withStyles } from "arwes";
 
 import usePlanets from "../hooks/usePlanets";
@@ -7,13 +7,13 @@ import useLaunches from "../hooks/useLaunches";
 
 import Centered from "../components/Centered";
 import Header from "../components/Header";
-import Footer from "../components/Footer";
 
 import Launch from "./Launch";
 import History from "./History";
 import Upcoming from "./Upcoming";
 
 const SolarSystem = lazy(() => import("./SolarSystem"));
+const LaunchSequence = lazy(() => import("../launch/LaunchSequence"));
 
 const styles = () => ({
   content: {
@@ -32,6 +32,7 @@ const styles = () => ({
 const AppLayout = props => {
   const { sounds, classes } = props;
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const isSolar = pathname.startsWith("/solar-system");
 
   const [frameVisible, setFrameVisible] = useState(true);
@@ -51,11 +52,27 @@ const AppLayout = props => {
     isPendingLaunch,
     submitLaunch,
     abortLaunch,
+    launchRun,
+    closeLaunchRun,
   } = useLaunches(onSuccessSound, onAbortSound, onFailureSound);
 
   const planets = usePlanets();
 
   return <div className={classes.content}>
+    {launchRun && (
+      <Suspense fallback={<div className="launch-loading">Preparing launch…</div>}>
+        <LaunchSequence
+          key={launchRun.id}
+          run={launchRun}
+          sounds={sounds}
+          onClose={closeLaunchRun}
+          onViewUpcoming={() => {
+            closeLaunchRun();
+            navigate("/upcoming");
+          }}
+        />
+      </Suspense>
+    )}
     <Header onNav={animateFrame} />
     <Centered className={classes.centered} style={isSolar ? { maxWidth: 1280, width: "calc(100% - 24px)" } : undefined}>
       <Frame animate
@@ -87,7 +104,6 @@ const AppLayout = props => {
         }}
       </Frame>
     </Centered>
-    <Footer />
   </div>;
 };
 
