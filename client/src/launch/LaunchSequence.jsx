@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import LaunchScene, { TIMELINE } from "./LaunchScene";
+import { createLaunchAudio } from "./launchAudio";
 import "./launch.css";
 
 const STATUS = {
@@ -27,6 +28,30 @@ const clock = (t) => {
 const LaunchSequence = ({ run, sounds, onClose, onViewUpcoming }) => {
   const [telemetry, setTelemetry] = useState({ t: 0, phase: "countdown", altitude: 0, speed: 0 });
   const played = useRef({});
+  const audio = useRef(null);
+  const lastBeep = useRef(null);
+  const [muted, setMuted] = useState(() => {
+    try {
+      return localStorage.getItem("launch-muted") === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    audio.current = createLaunchAudio();
+    audio.current?.resume();
+    return () => audio.current?.close();
+  }, []);
+
+  useEffect(() => {
+    audio.current?.setMuted(muted);
+    try {
+      localStorage.setItem("launch-muted", muted ? "1" : "0");
+    } catch {
+      return;
+    }
+  }, [muted]);
 
   const onTelemetry = useCallback((next) => setTelemetry(next), []);
 
@@ -47,10 +72,40 @@ const LaunchSequence = ({ run, sounds, onClose, onViewUpcoming }) => {
       played.current[key] = true;
       sounds?.[name]?.play();
     };
-    if (telemetry.phase === "ignition") play("ignition", "deploy");
+    if (telemetry.phase === "ignition" && !played.current.ignition) {
+      played.current.ignition = true;
+      audio.current?.thud(0.8);
+      navigator.vibrate?.([250, 80, 400, 80, 900, 60, 1200]);
+    }
+    if (telemetry.phase === "separation" && !played.current.separation) {
+      played.current.separation = true;
+      audio.current?.thud(0.5);
+      navigator.vibrate?.(120);
+    }
     if (telemetry.phase === "orbit") play("orbit", "success");
     if (telemetry.phase === "scrubbed") play("scrubbed", "warning");
   }, [telemetry.phase, sounds]);
+
+  useEffect(() => {
+    const a = audio.current;
+    if (!a) return;
+    const { t, phase: p, altitude } = telemetry;
+    if ((p === "countdown") && t < TIMELINE.ignition) {
+      const second = Math.floor(t);
+      if (second !== lastBeep.current) {
+        lastBeep.current = second;
+        a.beep(second >= 4 ? 1320 : 880, second >= 4 ? 0.22 : 0.1);
+      }
+    }
+    const far = Math.min(0.92, altitude / 260);
+    const thrust =
+      p === "ignition" ? Math.min(1, (t - TIMELINE.ignition) / 1.4) * 0.85
+        : ["liftoff", "maxq", "ascent"].includes(p) ? 1
+          : p === "second" ? 0.4
+            : p === "orbit" ? Math.max(0, 0.4 - (t - TIMELINE.orbit) * 0.1)
+              : 0;
+    a.setThrust(thrust, p === "second" || p === "orbit" ? 0.85 : far);
+  }, [telemetry]);
 
   const { phase } = telemetry;
   const done = phase === "orbit";
@@ -59,7 +114,7 @@ const LaunchSequence = ({ run, sounds, onClose, onViewUpcoming }) => {
 
   return (
     <div className="launch-overlay" role="dialog" aria-modal="true" aria-label={`Launch of ${run.mission}`}>
-      <LaunchScene outcome={run.status} onTelemetry={onTelemetry} />
+      <LaunchScene outcome={run.status} onTelemetry={onTelemetry} label={run.rocket} />
 
       <div className="launch-hud">
         <div className="launch-top">
@@ -71,9 +126,22 @@ const LaunchSequence = ({ run, sounds, onClose, onViewUpcoming }) => {
               {run.flightNumber ? ` · Flight #${run.flightNumber}` : ""}
             </span>
           </div>
+          <div className="launch-buttons">
+          <button
+            type="button"
+            className="launch-close"
+            onClick={() => {
+              audio.current?.resume();
+              setMuted((m) => !m);
+            }}
+            aria-label={muted ? "Turn sound on" : "Turn sound off"}
+          >
+            {muted ? "🔇" : "🔊"}
+          </button>
           <button type="button" className="launch-close" onClick={onClose} aria-label="Close launch view">
             {done || scrubbed ? "✕" : "Skip ✕"}
           </button>
+          </div>
         </div>
 
         <div className={`launch-clock ${phase === "hold" ? "is-hold" : ""} ${scrubbed ? "is-scrubbed" : ""}`}>
