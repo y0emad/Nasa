@@ -73,8 +73,8 @@ const AppLayout = props => {
         />
       </Suspense>
     )}
-    <Header onNav={animateFrame} />
-    <Centered className={classes.centered} style={isSolar ? { maxWidth: 1280, width: "calc(100% - 24px)" } : undefined}>
+    <Header onNav={animateFrame} maxWidth={isSolar ? 1280 : 1000} />
+    <Centered className={classes.centered} style={{ maxWidth: isSolar ? 1280 : 1000, width: "calc(100% - 24px)" }}>
       <Frame animate
         show={frameVisible}
         corners={4}

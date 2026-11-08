@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { AdditiveBlending, Color, FogExp2, MathUtils, NormalBlending, Vector3 } from "three";
+import { STAGE1_HEIGHT, StageOneModel, StageTwoModel } from "./Rocket";
 
 export const TIMELINE = {
   holdAt: 4.2,
@@ -13,11 +14,20 @@ export const TIMELINE = {
   orbit: 6 + 14,
 };
 
-const STAGE1_HEIGHT = 7.4;
 const DUSK = new Color("#1d3a5f");
 const SPACE = new Color("#000207");
 
 const BURN = TIMELINE.orbit - TIMELINE.liftoff;
+const shakeAt = (t, throttle) => {
+  if (t < TIMELINE.ignition) return 0;
+  const s = t - TIMELINE.liftoff;
+  const ignition = Math.min(1, (t - TIMELINE.ignition) / 1.4) * 0.7;
+  const liftoff = s > 0 ? Math.exp(-s / 6) : 0;
+  const maxQ = 0.45 * Math.exp(-Math.pow((s - 5.5) / 1.6, 2));
+  const separation = t > TIMELINE.separation ? 0.9 * Math.exp(-(t - TIMELINE.separation) * 3.5) : 0;
+  const secondJolt = t > TIMELINE.secondIgnition ? 0.5 * Math.exp(-(t - TIMELINE.secondIgnition) * 3) : 0;
+  return Math.max(ignition * (s > 0 ? Math.exp(-s / 6) : 1), liftoff) * throttle + maxQ * throttle + separation + secondJolt;
+};
 const rawAltitude = (s) => 0.6 * s * s + 0.12 * s * s * s;
 const rawSpeed = (s) => 1.2 * s + 0.36 * s * s;
 const altitudeAt = (s) => (s <= BURN ? rawAltitude(s) : rawAltitude(BURN) + rawSpeed(BURN) * 0.35 * (s - BURN));
@@ -233,56 +243,58 @@ const Smoke = ({ sim }) => {
   return <ParticleMesh pool={pool} material={material} geometryRef={geometryRef} />;
 };
 
-const White = (props) => <meshStandardMaterial color="#e9edf0" roughness={0.55} metalness={0.1} {...props} />;
-const Dark = (props) => <meshStandardMaterial color="#1b1f24" roughness={0.6} metalness={0.4} {...props} />;
+const Vent = ({ sim }) => {
+  const geometryRef = useRef();
+  const { pool, material } = useParticles(420, NormalBlending);
+  useFrame((_, delta) => {
+    const dt = Math.min(delta, 0.05);
+    const { t, throttle1 } = sim.current;
+    if (t > 0.2 && t < TIMELINE.liftoff + 0.4 && sim.current.phase !== "scrubbed") {
+      const count = Math.floor(70 * dt + Math.random());
+      for (let n = 0; n < count; n++) {
+        const a = Math.random() * Math.PI * 2;
+        const high = Math.random() < 0.45;
+        const y = high ? STAGE1_HEIGHT + 1.6 + Math.random() * 0.6 : STAGE1_HEIGHT * (0.45 + Math.random() * 0.5);
+        pool.spawn(Math.cos(a) * 0.44, y + 0.95, Math.sin(a) * 0.44, Math.cos(a) * 1.4, -0.3, Math.sin(a) * 1.4, 1.2 + Math.random() * 1.2);
+      }
+    }
+    for (let i = 0; i < pool.max; i++) {
+      if (pool.age[i] >= pool.life[i]) {
+        pool.alpha[i] = 0;
+        continue;
+      }
+      pool.age[i] += dt;
+      const k = pool.age[i] / pool.life[i];
+      const j = i * 3;
+      pool.vel[j] *= 1 - dt * 1.2;
+      pool.vel[j + 1] -= dt * 0.9;
+      pool.vel[j + 2] *= 1 - dt * 1.2;
+      pool.pos[j] += pool.vel[j] * dt;
+      pool.pos[j + 1] += pool.vel[j + 1] * dt;
+      pool.pos[j + 2] += pool.vel[j + 2] * dt;
+      const c = 0.9 + pool.seed[i] * 0.08 + throttle1 * 0.1;
+      pool.color[j] = c;
+      pool.color[j + 1] = c;
+      pool.color[j + 2] = c + 0.04;
+      pool.alpha[i] = Math.min(1, k * 6) * (1 - k) * 0.4;
+      pool.size[i] = 0.5 + k * 2.6;
+    }
+    flush(geometryRef.current);
+  });
+  return <ParticleMesh pool={pool} material={material} geometryRef={geometryRef} />;
+};
 
-const StageOne = ({ sim }) => (
+const StageOne = ({ sim, label }) => (
   <group>
-    <mesh position={[0, -0.3, 0]}>
-      <cylinderGeometry args={[0.22, 0.4, 0.6, 24]} />
-      <Dark />
-    </mesh>
-    <mesh position={[0, 3.5, 0]}>
-      <cylinderGeometry args={[0.45, 0.45, 7, 32]} />
-      <White />
-    </mesh>
-    <mesh position={[0, 5.2, 0]}>
-      <cylinderGeometry args={[0.455, 0.455, 0.16, 32]} />
-      <meshStandardMaterial color="#2ec6e6" emissive="#0b4a57" roughness={0.4} />
-    </mesh>
-    <mesh position={[0, 7.1, 0]}>
-      <cylinderGeometry args={[0.46, 0.46, 0.6, 32]} />
-      <Dark />
-    </mesh>
-    {[0, 1, 2, 3].map((n) => (
-      <mesh key={n} rotation={[0, (n * Math.PI) / 2, 0]} position={[Math.sin((n * Math.PI) / 2) * 0.62, 0.55, Math.cos((n * Math.PI) / 2) * 0.62]}>
-        <boxGeometry args={[0.06, 1.1, 0.5]} />
-        <Dark />
-      </mesh>
-    ))}
+    <StageOneModel sim={sim} label={label} />
     <Flame sim={sim} stage={1} />
   </group>
 );
 
-const StageTwo = ({ sim }) => (
+const StageTwo = ({ sim, label }) => (
   <group>
-    <mesh position={[0, -0.15, 0]}>
-      <cylinderGeometry args={[0.12, 0.3, 0.4, 20]} />
-      <Dark />
-    </mesh>
-    <mesh position={[0, 1.1, 0]}>
-      <cylinderGeometry args={[0.45, 0.45, 2.2, 32]} />
-      <White />
-    </mesh>
-    <mesh position={[0, 2.7, 0]}>
-      <cylinderGeometry args={[0.5, 0.5, 1, 32]} />
-      <White />
-    </mesh>
-    <mesh position={[0, 3.85, 0]}>
-      <coneGeometry args={[0.5, 1.3, 32]} />
-      <White />
-    </mesh>
-    <group position={[0, 0.25, 0]}>
+    <StageTwoModel sim={sim} label={label} />
+    <group position={[0, -0.6, 0]}>
       <Flame sim={sim} stage={2} tint="blue" length={0.7} />
     </group>
   </group>
@@ -298,7 +310,7 @@ const Tower = ({ sim }) => {
     beacon.current.material.emissiveIntensity = Math.sin(state.clock.elapsedTime * 4) > 0 ? 3 : 0.2;
   });
   const rungs = [];
-  for (let y = 0.8; y < 13; y += 1.2) rungs.push(y);
+  for (let y = 0.8; y < 17.5; y += 1.25) rungs.push(y);
   return (
     <group position={[-2.3, 0, 0]}>
       {[
@@ -307,8 +319,8 @@ const Tower = ({ sim }) => {
         [-0.5, 0.5],
         [0.5, 0.5],
       ].map(([x, z]) => (
-        <mesh key={`${x}${z}`} position={[x, 6.5, z]}>
-          <boxGeometry args={[0.08, 13, 0.08]} />
+        <mesh key={`${x}${z}`} position={[x, 8.75, z]}>
+          <boxGeometry args={[0.08, 17.5, 0.08]} />
           <meshStandardMaterial color="#7a3b26" roughness={0.8} />
         </mesh>
       ))}
@@ -324,13 +336,13 @@ const Tower = ({ sim }) => {
           </mesh>
         </group>
       ))}
-      <group ref={arm} position={[0.5, 9.6, 0]}>
+      <group ref={arm} position={[0.5, 12.8, 0]}>
         <mesh position={[0.75, 0, 0]}>
           <boxGeometry args={[1.5, 0.22, 0.3]} />
           <meshStandardMaterial color="#555b61" metalness={0.5} roughness={0.5} />
         </mesh>
       </group>
-      <mesh ref={beacon} position={[0, 13.15, 0]}>
+      <mesh ref={beacon} position={[0, 17.65, 0]}>
         <sphereGeometry args={[0.12, 12, 12]} />
         <meshStandardMaterial color="#ff2a2a" emissive="#ff2a2a" emissiveIntensity={1} />
       </mesh>
@@ -395,22 +407,22 @@ const SkyStars = ({ sim }) => {
   );
 };
 
-const Director = ({ sim, outcomeRef, onTelemetry }) => {
+const Director = ({ sim, outcomeRef, onTelemetry, label }) => {
   const stage1 = useRef();
   const stage2 = useRef();
   const { camera, scene } = useThree();
-  const look = useMemo(() => new Vector3(0, 6, 0), []);
+  const look = useMemo(() => new Vector3(0, 8.5, 0), []);
   const desired = useMemo(() => new Vector3(), []);
-  const offset = useMemo(() => new Vector3(10, 1.5, 15), []);
-  const lookOffset = useRef(5);
+  const offset = useMemo(() => new Vector3(21, 2.5, 40), []);
+  const lookOffset = useRef(7.5);
   const lastTick = useRef(0);
   const sep = useRef(null);
 
   useEffect(() => {
     scene.fog = new FogExp2(DUSK.clone(), 0.0045);
     scene.background = DUSK.clone();
-    camera.position.set(10, 2.5, 15);
-    camera.lookAt(0, 6, 0);
+    camera.position.set(21, 3.5, 40);
+    camera.lookAt(0, 8.5, 0);
   }, [camera, scene]);
 
   useFrame((state, delta) => {
@@ -476,15 +488,15 @@ const Director = ({ sim, outcomeRef, onTelemetry }) => {
 
     const focus = t < TIMELINE.separation ? stage1.current.position : stage2.current.position;
     if (s <= 0) {
-      desired.set(10, 2.5, 15);
-      look.lerp(new Vector3(0, 6, 0), 1 - Math.exp(-3 * dt));
+      desired.set(21, 3.5, 40);
+      look.lerp(new Vector3(0, 8.5, 0), 1 - Math.exp(-3 * dt));
     } else {
       const k = MathUtils.clamp(s / 8, 0, 1);
       const upper = t >= TIMELINE.separation;
-      if (upper) desired.set(9, -2.5, 13);
-      else desired.set(MathUtils.lerp(10, 15, k), MathUtils.lerp(-1, -4, k), MathUtils.lerp(15, 22, k));
+      if (upper) desired.set(10, -2.5, 15);
+      else desired.set(MathUtils.lerp(21, 19, k), MathUtils.lerp(2.5, -5, k), MathUtils.lerp(40, 30, k));
       offset.lerp(desired, 1 - Math.exp(-1.5 * dt));
-      lookOffset.current = MathUtils.lerp(lookOffset.current, upper ? 2.6 : MathUtils.lerp(5, 7, k), 1 - Math.exp(-2 * dt));
+      lookOffset.current = MathUtils.lerp(lookOffset.current, upper ? 3 : MathUtils.lerp(7.5, 8, k), 1 - Math.exp(-2 * dt));
       look.copy(focus).addScaledVector(up, lookOffset.current);
     }
     if (s <= 0) {
@@ -493,10 +505,18 @@ const Director = ({ sim, outcomeRef, onTelemetry }) => {
       camera.position.copy(focus).add(offset);
     }
 
-    const shake = (t > TIMELINE.ignition ? Math.min(1, (t - TIMELINE.ignition) / 1.4) : 0) * Math.max(0, 1 - s / 12) * 0.16 * s0.throttle1;
-    camera.position.x += (Math.random() - 0.5) * shake;
-    camera.position.y += (Math.random() - 0.5) * shake;
+    const shake = shakeAt(t, s0.throttle1);
+    s0.shake = shake;
+    const time = state.clock.elapsedTime;
+    const nx = Math.sin(time * 41.3) * 0.6 + Math.sin(time * 23.1 + 1.7) * 0.4 + (Math.random() - 0.5) * 0.5;
+    const ny = Math.sin(time * 37.7 + 0.4) * 0.6 + Math.sin(time * 19.3 + 2.9) * 0.4 + (Math.random() - 0.5) * 0.5;
+    const nr = Math.sin(time * 29.9 + 1.1) * 0.7 + (Math.random() - 0.5) * 0.4;
+    camera.position.x += nx * shake * 0.55;
+    camera.position.y += ny * shake * 0.55;
     camera.lookAt(look);
+    camera.rotateZ(nr * shake * 0.022);
+    camera.rotateX(ny * shake * 0.016);
+    camera.rotateY(nx * shake * 0.012);
 
     const sky = MathUtils.clamp(altitude / 320, 0, 1);
     scene.background.copy(DUSK).lerp(SPACE, sky);
@@ -505,23 +525,23 @@ const Director = ({ sim, outcomeRef, onTelemetry }) => {
 
     if (state.clock.elapsedTime - lastTick.current > 0.1) {
       lastTick.current = state.clock.elapsedTime;
-      onTelemetry({ t, phase: s0.phase, altitude, speed: s0.speed });
+      onTelemetry({ t, phase: s0.phase, altitude, speed: s0.speed, shake: s0.shake });
     }
   });
 
   return (
     <>
       <group ref={stage1}>
-        <StageOne sim={sim} />
+        <StageOne sim={sim} label={label} />
       </group>
       <group ref={stage2}>
-        <StageTwo sim={sim} />
+        <StageTwo sim={sim} label={label} />
       </group>
     </>
   );
 };
 
-const LaunchScene = ({ outcome, onTelemetry }) => {
+const LaunchScene = ({ outcome, onTelemetry, label }) => {
   const outcomeRef = useRef(outcome);
   outcomeRef.current = outcome;
   const sim = useRef({
@@ -539,11 +559,13 @@ const LaunchScene = ({ outcome, onTelemetry }) => {
     <Canvas dpr={[1, 1.75]} camera={{ fov: 50, near: 0.1, far: 4000 }} gl={{ antialias: true }}>
       <hemisphereLight args={["#6d8fbf", "#1a1410", 0.55]} />
       <directionalLight position={[-30, 40, 20]} intensity={0.9} color="#cfd9ff" />
+      <directionalLight position={[25, 12, 40]} intensity={0.75} color="#e6eeff" />
       <SkyStars sim={sim} />
       <Ground />
       <Tower sim={sim} />
       <Smoke sim={sim} />
-      <Director sim={sim} outcomeRef={outcomeRef} onTelemetry={onTelemetry} />
+      <Vent sim={sim} />
+      <Director sim={sim} outcomeRef={outcomeRef} onTelemetry={onTelemetry} label={label} />
     </Canvas>
   );
 };
