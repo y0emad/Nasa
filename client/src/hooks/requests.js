@@ -1,21 +1,26 @@
-const API_URL = '';
+const API_URL = "";
 
-// Load planets and return as JSON.
+async function getJson(path, fallback) {
+  try {
+    const response = await fetch(`${API_URL}${path}`);
+    if (!response.ok) return fallback;
+    return await response.json();
+  } catch {
+    return fallback;
+  }
+}
+
 async function httpGetPlanets() {
-  const response = await fetch(`${API_URL}/planets/get`);
-  return await response.json();
+  const planets = await getJson("/planets/get", []);
+  return Array.isArray(planets) ? planets : [];
 }
 
-// Load launches, sort by flight number, and return as JSON.
 async function httpGetLaunches() {
-  const response = await fetch(`${API_URL}/launches/get`);
-  const fetchedLaunches = await response.json();
-  return fetchedLaunches.sort((a, b) => {
-    return a.flightNumber - b.flightNumber;
-  });
+  const launches = await getJson("/launches/get", []);
+  if (!Array.isArray(launches)) return [];
+  return launches.sort((a, b) => a.flightNumber - b.flightNumber);
 }
 
-// Submit given launch data to launch system.
 async function httpSubmitLaunch(launch) {
   try {
     return await fetch(`${API_URL}/launches/create`, {
@@ -25,25 +30,29 @@ async function httpSubmitLaunch(launch) {
       },
       body: JSON.stringify(launch),
     });
-  } catch(err) {
+  } catch {
     return {
       ok: false,
     };
   }
 }
 
-// Delete launch with given ID.
 async function httpAbortLaunch(id) {
   try {
     return await fetch(`${API_URL}/launches/update/${id}`, {
       method: "put",
     });
-  } catch(err) {
-    console.log(err);
+  } catch {
     return {
       ok: false,
     };
   }
+}
+
+async function httpGetSolarSystem() {
+  const response = await fetch(`${API_URL}/solar-system/bodies`);
+  if (!response.ok) throw new Error(`Solar system request failed: ${response.status}`);
+  return await response.json();
 }
 
 export {
@@ -51,4 +60,5 @@ export {
   httpGetLaunches,
   httpSubmitLaunch,
   httpAbortLaunch,
+  httpGetSolarSystem,
 };

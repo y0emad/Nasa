@@ -28,8 +28,10 @@ const styles = theme => ({
     marginLeft: "10px",
     marginRight: "15px",
     fontSize: 28,
+    whiteSpace: "nowrap",
   },
   clickable: {
+    whiteSpace: "nowrap",
     fontSize: 21,
     "& i": {
       marginRight: theme.padding / 2,
@@ -42,6 +44,11 @@ const styles = theme => ({
   },
   button: {
     padding: [0, theme.padding / 2],
+  },
+  "@media (max-width: 1000px)": {
+    banner: {
+      display: "none",
+    },
   },
   "@media (max-width: 800px)": {
     logo: {
@@ -60,12 +67,23 @@ const styles = theme => ({
       fontSize: 16,
     }
   },
+  "@media (max-width: 600px)": {
+    clickable: {
+      fontSize: 15,
+      "& i": {
+        display: "none",
+      },
+    },
+    button: {
+      padding: [0, 6],
+    },
+  },
 });
 
 const Header = props => {
   const { classes, onNav, ...rest } = props;
   return <ArwesHeader animate>
-    <Centered className={classes.root} {...rest}>
+    <Centered className={classes.root} style={{ maxWidth: 1100, width: "calc(100% - 24px)" }} {...rest}>
       <img src="/favicon.png" alt="" className={classes.img} style={{
         margin: "15px 10px 15px 0",
         height: "50px",
@@ -93,6 +111,12 @@ const Header = props => {
           <Highlight className={classes.button} animate layer="header">
             <Link className={classes.link} to="/history">
             <i className="material-icons">history</i>History</Link>
+          </Highlight>
+        </Clickable>
+        <Clickable className={classes.clickable} onClick={onNav}>
+          <Highlight className={classes.button} animate layer="header">
+            <Link className={classes.link} to="/solar-system">
+            <i className="material-icons">public</i>Solar System</Link>
           </Highlight>
         </Clickable>
       </nav>

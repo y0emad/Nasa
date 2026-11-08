@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import path from 'path';
 import PlanetsRouter from './router/PlanetsRouter';
 import LaunchRouter from './router/LaunchRouter';
+import SolarSystemRouter from './router/SolarSystemRouter';
 import { loadLaunchData, loadPlanetsData } from './middleWare/middleWare';
 
 const clientBuild = path.join(__dirname, '..', 'public');
@@ -43,6 +44,7 @@ class server {
   private routes() {
     this.app.use('/planets', PlanetsRouter);
     this.app.use('/launches', LaunchRouter);
+    this.app.use('/solar-system', SolarSystemRouter);
   }
 
   private serveClient() {

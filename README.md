@@ -7,12 +7,13 @@ exoplanet from NASA's Kepler data, schedule a launch, and view upcoming and past
 
 - Schedule mission launches to habitable exoplanets
 - View upcoming launches and mission history, and abort scheduled launches
+- Explore a 3D solar system: the Sun and 8 planets in their positions for today, with speed controls and a facts panel for each planet
 - Habitable planet data loaded from the NASA Kepler exoplanet dataset
 - Automated install, build and tests with GitHub Actions
 
 ## Tech Stack
 
-- **Frontend:** React
+- **Frontend:** React 18, Vite, React Router, arwes, three.js (react-three-fiber)
 - **Backend:** Node.js, Express, TypeScript
 - **Database:** MongoDB
 - **CI:** GitHub Actions
@@ -68,10 +69,17 @@ GET_LAUNCHES_API=https://ll.thespacedevs.com/2.3.0/launches
 npm run dev --prefix server
 
 # frontend
-npm start --prefix client
+npm run dev --prefix client
 ```
 
-Open http://localhost:3000. The React dev server forwards API calls to the server on port 8000.
+Open http://localhost:3000. The Vite dev server forwards API calls to the server on port 8000.
+
+## Solar System
+
+`/solar-system` renders the Sun and the planets with three.js. Planet data comes from the NASA Planetary Fact Sheet
+and is served by `GET /solar-system/bodies` (and `GET /solar-system/bodies/:id`). Planet positions start from their
+mean longitude for today's date, and the planet textures are generated procedurally in a Web Worker so the page
+never freezes while they load. The 3D code is lazy-loaded, so the other pages do not download it.
 
 ## Scripts
 
@@ -80,7 +88,7 @@ Open http://localhost:3000. The React dev server forwards API calls to the serve
 | `npm run dev --prefix server` | Start the server with nodemon |
 | `npm run build --prefix server` | Compile the server to `server/dist` |
 | `npm start --prefix server` | Run the compiled server |
-| `npm start --prefix client` | Start the React dev server |
+| `npm run dev --prefix client` | Start the Vite dev server on port 3000 |
 | `npm run build --prefix client` | Build the frontend into `server/public` |
 | `npm test --prefix server` | Run the server tests (needs a MongoDB, `MONGO_URI`) |
 
