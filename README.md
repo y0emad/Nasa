@@ -7,6 +7,7 @@ exoplanet from NASA's Kepler data, schedule a launch, and view upcoming and past
 
 - Schedule mission launches to habitable exoplanets
 - View upcoming launches and mission history, and abort scheduled launches
+- Watch a 3D launch sequence when you schedule a mission
 - Explore a 3D solar system: the Sun and 8 planets in their positions for today, with speed controls and a facts panel for each planet
 - Habitable planet data loaded from the NASA Kepler exoplanet dataset
 - Automated install, build and tests with GitHub Actions
@@ -78,8 +79,14 @@ Open http://localhost:3000. The Vite dev server forwards API calls to the server
 
 `/solar-system` renders the Sun and the planets with three.js. Planet data comes from the NASA Planetary Fact Sheet
 and is served by `GET /solar-system/bodies` (and `GET /solar-system/bodies/:id`). Planet positions start from their
-mean longitude for today's date, and the planet textures are generated procedurally in a Web Worker so the page
-never freezes while they load. The 3D code is lazy-loaded, so the other pages do not download it.
+mean longitude for today's date. Planet images are from [Solar System Scope](https://www.solarsystemscope.com/textures/)
+(CC BY 4.0), resized to keep the page light. The 3D code is lazy-loaded, so the other pages do not download it.
+
+## Launch sequence
+
+Scheduling a mission plays a 3D launch: countdown, tower arm retract, ignition, liftoff, max Q, stage separation
+and second stage burn. The request to the server runs during the countdown. If it is still pending the count holds
+at T-2, and if the server rejects the launch it is scrubbed before ignition and shows the reason.
 
 ## Scripts
 

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html, Line, OrbitControls, Stars } from "@react-three/drei";
 import { AdditiveBlending, DoubleSide, MathUtils, Vector3 } from "three";
-import { glowTexture, ringTexture, usePlanetTexture } from "./textures";
+import { faintRingTexture, glowTexture, usePlanetTexture, useTexture } from "./textures";
 
 const SUN_RADIUS = 5;
 const J2000 = Date.UTC(2000, 0, 1, 12);
@@ -89,8 +89,11 @@ const Orbit = ({ radius, color, highlighted }) => {
 const Ring = ({ id, radius }) => {
   const ref = useRef();
   const { inner, outer } = RINGS[id];
+  const saturnRing = useTexture("/textures/saturn-ring.png");
+  const map = id === "saturn" ? saturnRing : faintRingTexture();
   useEffect(() => {
     const geometry = ref.current;
+    if (!geometry) return;
     const pos = geometry.attributes.position;
     const uv = geometry.attributes.uv;
     const v = new Vector3();
@@ -99,11 +102,12 @@ const Ring = ({ id, radius }) => {
       uv.setXY(i, (v.length() - radius * inner) / (radius * (outer - inner)), 0.5);
     }
     uv.needsUpdate = true;
-  }, [radius, inner, outer]);
+  }, [radius, inner, outer, map]);
+  if (!map) return null;
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]}>
       <ringGeometry ref={ref} args={[radius * inner, radius * outer, 128, 1]} />
-      <meshStandardMaterial map={ringTexture(id)} transparent side={DoubleSide} depthWrite={false} roughness={1} />
+      <meshStandardMaterial map={map} transparent side={DoubleSide} depthWrite={false} roughness={1} />
     </mesh>
   );
 };

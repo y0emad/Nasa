@@ -1,88 +1,56 @@
 import { useEffect, useState } from "react";
-import { CanvasTexture, SRGBColorSpace } from "three";
-import { fbm, hex, mix, renderPlanetPixels, TEXTURE_HEIGHT, TEXTURE_WIDTH } from "./planetPixels";
+import { CanvasTexture, SRGBColorSpace, TextureLoader } from "three";
 
 const cache = new Map();
-const pending = new Map();
-let worker;
+const loader = new TextureLoader();
 
-const toTexture = (id, data) => {
-  const canvas = document.createElement("canvas");
-  canvas.width = TEXTURE_WIDTH;
-  canvas.height = TEXTURE_HEIGHT;
-  canvas.getContext("2d").putImageData(new ImageData(data, TEXTURE_WIDTH, TEXTURE_HEIGHT), 0, 0);
-  const texture = new CanvasTexture(canvas);
-  texture.colorSpace = SRGBColorSpace;
-  texture.anisotropy = 4;
-  cache.set(id, texture);
-  return texture;
-};
-
-const getWorker = () => {
-  if (worker !== undefined) return worker;
-  try {
-    worker = new Worker(new URL("./textureWorker.js", import.meta.url), { type: "module" });
-    worker.onmessage = ({ data: { id, pixels } }) => {
-      const texture = toTexture(id, pixels);
-      pending.get(id)?.forEach((resolve) => resolve(texture));
-      pending.delete(id);
-    };
-  } catch {
-    worker = null;
+const load = (url) => {
+  if (!cache.has(url)) {
+    cache.set(
+      url,
+      loader.loadAsync(url).then((texture) => {
+        texture.colorSpace = SRGBColorSpace;
+        texture.anisotropy = 8;
+        return texture;
+      }),
+    );
   }
-  return worker;
+  return cache.get(url);
 };
 
-const requestTexture = (id) =>
-  new Promise((resolve) => {
-    if (cache.has(id)) return resolve(cache.get(id));
-    if (pending.has(id)) return pending.get(id).push(resolve);
-    pending.set(id, [resolve]);
-    const w = getWorker();
-    if (w) {
-      w.postMessage(id);
-    } else {
-      setTimeout(() => {
-        const texture = toTexture(id, renderPlanetPixels(id));
-        pending.get(id)?.forEach((done) => done(texture));
-        pending.delete(id);
-      }, 0);
-    }
-  });
-
-export const usePlanetTexture = (id) => {
-  const [texture, setTexture] = useState(() => cache.get(id) ?? null);
+export const useTexture = (url) => {
+  const [texture, setTexture] = useState(null);
   useEffect(() => {
     let active = true;
-    requestTexture(id).then((t) => active && setTexture(t));
+    load(url)
+      .then((t) => active && setTexture(t))
+      .catch(() => {});
     return () => {
       active = false;
     };
-  }, [id]);
+  }, [url]);
   return texture;
 };
 
-export const ringTexture = (id) => {
-  const key = `ring:${id}`;
-  if (cache.has(key)) return cache.get(key);
+export const usePlanetTexture = (id) => useTexture(`/textures/${id}.jpg`);
+
+export const faintRingTexture = () => {
+  if (cache.has("ring:faint")) return cache.get("ring:faint");
   const canvas = document.createElement("canvas");
-  canvas.width = 512;
-  canvas.height = 8;
+  canvas.width = 256;
+  canvas.height = 4;
   const ctx = canvas.getContext("2d");
-  const faint = id !== "saturn";
-  for (let i = 0; i < 512; i++) {
-    const t = i / 511;
-    const band = fbm(t * 40, 1.3, 2.7, 4);
-    let alpha = faint ? 0.25 * band : 0.25 + band * 0.75;
-    if (!faint && t > 0.62 && t < 0.67) alpha *= 0.12;
-    if (t < 0.04 || t > 0.97) alpha *= 0.3;
-    const shade = faint ? [170, 210, 220] : mix(hex("#8c7650"), hex("#efe2c2"), band);
-    ctx.fillStyle = `rgba(${shade[0] | 0}, ${shade[1] | 0}, ${shade[2] | 0}, ${alpha.toFixed(3)})`;
-    ctx.fillRect(i, 0, 1, 8);
+  const bands = [0.08, 0.22, 0.31, 0.47, 0.6, 0.74, 0.93];
+  for (let i = 0; i < 256; i++) {
+    const t = i / 255;
+    const near = Math.min(...bands.map((b) => Math.abs(b - t)));
+    const alpha = Math.max(0, 0.35 - near * 12);
+    ctx.fillStyle = `rgba(175, 215, 225, ${alpha.toFixed(3)})`;
+    ctx.fillRect(i, 0, 1, 4);
   }
   const texture = new CanvasTexture(canvas);
   texture.colorSpace = SRGBColorSpace;
-  cache.set(key, texture);
+  cache.set("ring:faint", texture);
   return texture;
 };
 
