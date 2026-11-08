@@ -13,7 +13,7 @@ const styles = (theme) => ({
   root: {
     display: "flex",
     alignItems: "center",
-    gap: 16,
+    gap: "16px",
     maxWidth: 1280,
     width: "calc(100% - 24px)",
     margin: "0 auto",
@@ -22,7 +22,7 @@ const styles = (theme) => ({
   brand: {
     display: "flex",
     alignItems: "center",
-    gap: 10,
+    gap: "10px",
     color: theme.color.content,
     textDecoration: "none",
     flexShrink: 0,
@@ -42,7 +42,7 @@ const styles = (theme) => ({
   nav: {
     display: "flex",
     marginLeft: "auto",
-    gap: 4,
+    gap: "4px",
   },
   item: {
     display: "block",
@@ -51,7 +51,7 @@ const styles = (theme) => ({
     position: "relative",
     display: "flex",
     alignItems: "center",
-    gap: 8,
+    gap: "8px",
     padding: "10px 14px",
     fontSize: 19,
     whiteSpace: "nowrap",
@@ -100,7 +100,7 @@ const styles = (theme) => ({
     root: {
       width: "100%",
       minHeight: 0,
-      gap: 0,
+      gap: "0px",
     },
     brand: {
       display: "none",
@@ -108,7 +108,7 @@ const styles = (theme) => ({
     nav: {
       width: "100%",
       marginLeft: 0,
-      gap: 0,
+      gap: "0px",
     },
     item: {
       flex: "1 1 0",
@@ -116,7 +116,7 @@ const styles = (theme) => ({
     },
     link: {
       flexDirection: "column",
-      gap: 2,
+      gap: "2px",
       padding: "10px 2px 8px",
       fontSize: 12,
       letterSpacing: 0.5,
