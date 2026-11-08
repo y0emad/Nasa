@@ -18,7 +18,7 @@ const styles = (theme) => ({
     flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 10,
+    gap: "10px",
     marginBottom: 10,
   },
   title: {
@@ -33,7 +33,7 @@ const styles = (theme) => ({
   chips: {
     display: "flex",
     flexWrap: "wrap",
-    gap: 6,
+    gap: "6px",
     marginBottom: 10,
   },
   chip: {
@@ -68,7 +68,7 @@ const styles = (theme) => ({
   },
   body: {
     display: "flex",
-    gap: 12,
+    gap: "12px",
     alignItems: "stretch",
   },
   canvas: {
@@ -120,7 +120,7 @@ const styles = (theme) => ({
   controls: {
     display: "flex",
     flexWrap: "wrap",
-    gap: 8,
+    gap: "8px",
     alignItems: "center",
   },
   credit: {
@@ -137,7 +137,7 @@ const styles = (theme) => ({
     userSelect: "none",
     display: "inline-flex",
     alignItems: "center",
-    gap: 4,
+    gap: "4px",
   },
   "@media (max-width: 900px)": {
     body: {
