@@ -14,6 +14,8 @@ export default defineConfig({
       "/planets/": api,
       "/launches/": api,
       "/solar-system/": api,
+      "/exoplanets/": api,
+      "/space-today": api,
     },
   },
   build: {

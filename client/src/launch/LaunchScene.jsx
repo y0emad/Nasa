@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { AdditiveBlending, Color, FogExp2, MathUtils, NormalBlending, Vector3 } from "three";
 import { STAGE1_HEIGHT, StageOneModel, StageTwoModel } from "./Rocket";
+import { graphicsProfile } from "../graphics";
 
 export const TIMELINE = {
   holdAt: 4.2,
@@ -119,16 +120,16 @@ const flush = (geometry) => {
   }
 };
 
-const Flame = ({ sim, stage, length = 1, tint = "orange" }) => {
+const Flame = ({ sim, stage, length = 1, tint = "orange", quality }) => {
   const geometryRef = useRef();
-  const { pool, material } = useParticles(stage === 1 ? 900 : 400, AdditiveBlending);
+  const { pool, material } = useParticles(Math.round((stage === 1 ? 900 : 400) * quality.particles), AdditiveBlending);
   const light = useRef();
   const blue = tint === "blue";
 
   useFrame((_, delta) => {
     const dt = Math.min(delta, 0.05);
     const throttle = stage === 1 ? sim.current.throttle1 : sim.current.throttle2;
-    const count = Math.floor(throttle * (stage === 1 ? 950 : 420) * dt + Math.random());
+    const count = Math.floor(throttle * (stage === 1 ? 950 : 420) * quality.particles * dt + Math.random());
     for (let n = 0; n < count; n++) {
       const a = Math.random() * Math.PI * 2;
       const r = Math.random() * (stage === 1 ? 0.28 : 0.14);
@@ -181,9 +182,9 @@ const Flame = ({ sim, stage, length = 1, tint = "orange" }) => {
   );
 };
 
-const Smoke = ({ sim }) => {
+const Smoke = ({ sim, quality }) => {
   const geometryRef = useRef();
-  const { pool, material } = useParticles(1800, NormalBlending);
+  const { pool, material } = useParticles(Math.round(1800 * quality.particles), NormalBlending);
 
   useFrame((_, delta) => {
     const dt = Math.min(delta, 0.05);
@@ -191,7 +192,7 @@ const Smoke = ({ sim }) => {
     if (throttle1 > 0.05) {
       const low = altitude < 45;
       const rate = low ? 260 : 70;
-      const count = Math.floor(rate * throttle1 * dt + Math.random());
+      const count = Math.floor(rate * throttle1 * quality.particles * dt + Math.random());
       for (let n = 0; n < count; n++) {
         const spread = low ? 5 : 1.2;
         pool.spawn(
@@ -243,14 +244,14 @@ const Smoke = ({ sim }) => {
   return <ParticleMesh pool={pool} material={material} geometryRef={geometryRef} />;
 };
 
-const Vent = ({ sim }) => {
+const Vent = ({ sim, quality }) => {
   const geometryRef = useRef();
-  const { pool, material } = useParticles(420, NormalBlending);
+  const { pool, material } = useParticles(Math.round(420 * quality.particles), NormalBlending);
   useFrame((_, delta) => {
     const dt = Math.min(delta, 0.05);
     const { t, throttle1 } = sim.current;
     if (t > 0.2 && t < TIMELINE.liftoff + 0.4 && sim.current.phase !== "scrubbed") {
-      const count = Math.floor(70 * dt + Math.random());
+      const count = Math.floor(70 * quality.particles * dt + Math.random());
       for (let n = 0; n < count; n++) {
         const a = Math.random() * Math.PI * 2;
         const high = Math.random() < 0.45;
@@ -284,18 +285,18 @@ const Vent = ({ sim }) => {
   return <ParticleMesh pool={pool} material={material} geometryRef={geometryRef} />;
 };
 
-const StageOne = ({ sim, label }) => (
+const StageOne = ({ sim, label, quality }) => (
   <group>
     <StageOneModel sim={sim} label={label} />
-    <Flame sim={sim} stage={1} />
+    <Flame sim={sim} stage={1} quality={quality} />
   </group>
 );
 
-const StageTwo = ({ sim, label }) => (
+const StageTwo = ({ sim, label, quality }) => (
   <group>
     <StageTwoModel sim={sim} label={label} />
     <group position={[0, -0.6, 0]}>
-      <Flame sim={sim} stage={2} tint="blue" length={0.7} />
+      <Flame sim={sim} stage={2} tint="blue" length={0.7} quality={quality} />
     </group>
   </group>
 );
@@ -379,19 +380,20 @@ const Ground = () => (
   </group>
 );
 
-const SkyStars = ({ sim }) => {
+const SkyStars = ({ sim, quality }) => {
   const ref = useRef();
   const material = useRef();
   const positions = useMemo(() => {
-    const list = new Float32Array(1800 * 3);
-    for (let i = 0; i < 1800; i++) {
+    const count = Math.round(1800 * quality.stars);
+    const list = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
       const u = Math.random() * 2 - 1;
       const a = Math.random() * Math.PI * 2;
       const r = Math.sqrt(1 - u * u);
       list.set([Math.cos(a) * r * 500, Math.abs(u) * 500, Math.sin(a) * r * 500], i * 3);
     }
     return list;
-  }, []);
+  }, [quality.stars]);
   const { camera } = useThree();
   useFrame(() => {
     ref.current.position.copy(camera.position);
@@ -407,7 +409,7 @@ const SkyStars = ({ sim }) => {
   );
 };
 
-const Director = ({ sim, outcomeRef, onTelemetry, label }) => {
+const Director = ({ sim, outcomeRef, onTelemetry, label, quality }) => {
   const stage1 = useRef();
   const stage2 = useRef();
   const { camera, scene } = useThree();
@@ -426,7 +428,7 @@ const Director = ({ sim, outcomeRef, onTelemetry, label }) => {
   }, [camera, scene]);
 
   useFrame((state, delta) => {
-    const dt = Math.min(delta, 0.05);
+    const dt = Math.min(delta, 0.1);
     const s0 = sim.current;
     const outcome = outcomeRef.current;
 
@@ -442,7 +444,8 @@ const Director = ({ sim, outcomeRef, onTelemetry, label }) => {
 
     const t = s0.t;
     const s = Math.max(0, t - TIMELINE.liftoff);
-    if (s0.phase !== "scrubbed" && s0.phase !== "hold") {
+    const holding = outcome === "pending" && t >= TIMELINE.holdAt;
+    if (s0.phase !== "scrubbed" && !holding) {
       s0.phase =
         t < TIMELINE.ignition ? "countdown"
           : t < TIMELINE.liftoff ? "ignition"
@@ -505,7 +508,7 @@ const Director = ({ sim, outcomeRef, onTelemetry, label }) => {
       camera.position.copy(focus).add(offset);
     }
 
-    const shake = shakeAt(t, s0.throttle1);
+    const shake = quality.reducedMotion ? 0 : shakeAt(t, s0.throttle1);
     s0.shake = shake;
     const time = state.clock.elapsedTime;
     const nx = Math.sin(time * 41.3) * 0.6 + Math.sin(time * 23.1 + 1.7) * 0.4 + (Math.random() - 0.5) * 0.5;
@@ -532,10 +535,10 @@ const Director = ({ sim, outcomeRef, onTelemetry, label }) => {
   return (
     <>
       <group ref={stage1}>
-        <StageOne sim={sim} label={label} />
+        <StageOne sim={sim} label={label} quality={quality} />
       </group>
       <group ref={stage2}>
-        <StageTwo sim={sim} label={label} />
+        <StageTwo sim={sim} label={label} quality={quality} />
       </group>
     </>
   );
@@ -554,18 +557,19 @@ const LaunchScene = ({ outcome, onTelemetry, label }) => {
     pitch: 0,
     nozzle: new Vector3(0, 0.95, 0),
   });
+  const quality = useMemo(graphicsProfile, []);
 
   return (
-    <Canvas dpr={[1, 1.75]} camera={{ fov: 50, near: 0.1, far: 4000 }} gl={{ antialias: true }}>
+    <Canvas dpr={quality.dpr} camera={{ fov: 50, near: 0.1, far: 4000 }} gl={{ antialias: quality.antialias }}>
       <hemisphereLight args={["#6d8fbf", "#1a1410", 0.55]} />
       <directionalLight position={[-30, 40, 20]} intensity={0.9} color="#cfd9ff" />
       <directionalLight position={[25, 12, 40]} intensity={0.75} color="#e6eeff" />
-      <SkyStars sim={sim} />
+      <SkyStars sim={sim} quality={quality} />
       <Ground />
       <Tower sim={sim} />
-      <Smoke sim={sim} />
-      <Vent sim={sim} />
-      <Director sim={sim} outcomeRef={outcomeRef} onTelemetry={onTelemetry} label={label} />
+      <Smoke sim={sim} quality={quality} />
+      <Vent sim={sim} quality={quality} />
+      <Director sim={sim} outcomeRef={outcomeRef} onTelemetry={onTelemetry} label={label} quality={quality} />
     </Canvas>
   );
 };

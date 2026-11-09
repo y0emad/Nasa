@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 import csv from "csv-parser";
 import Planet from "../models/Planet";
+import { isHabitable } from "../data/exoplanets";
 
 interface KOIRow {
   kepler_name: string;
@@ -54,14 +55,6 @@ export async function loadLaunchData(): Promise<void> {
         console.error("Failed to fetch or save launch data:", error);
       }
     }
-
-function isHabitable(row: KOIRow): boolean {
-  return (
-    row.koi_disposition === "CONFIRMED" &&
-    parseFloat(row.koi_insol) > 0.36 &&
-    parseFloat(row.koi_insol) < 1.11
-  );
-}
 
 function parseCSV(filePath: string): Promise<KOIRow[]> {
   return new Promise((resolve, reject) => {

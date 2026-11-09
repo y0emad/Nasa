@@ -1,8 +1,8 @@
 const resources = {
   background: {
-    small: "/img/background-small.jpg",
-    medium: "/img/background-medium.jpg",
-    large: "/img/background-large.jpg",
+    small: "/img/background-small.webp",
+    medium: "/img/background-medium.webp",
+    large: "/img/background-large.webp",
   },
   pattern: "/img/glow.png",
 };
@@ -28,6 +28,7 @@ const sounds = {
       sound: {
         src: ["/sound/success.mp3"],
         volume: 0.2,
+        preload: false,
       },
       settings: { oneAtATime: true }
     },
