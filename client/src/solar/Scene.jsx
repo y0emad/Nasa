@@ -3,6 +3,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html, Line, OrbitControls, Stars } from "@react-three/drei";
 import { AdditiveBlending, DoubleSide, MathUtils, Vector3 } from "three";
 import { faintRingTexture, glowTexture, usePlanetTexture, useTexture } from "./textures";
+import { graphicsProfile } from "../graphics";
 
 const SUN_RADIUS = 5;
 const J2000 = Date.UTC(2000, 0, 1, 12);
@@ -259,7 +260,7 @@ const LabelDeclutter = ({ registry, selectedId }) => {
 
 const OVERVIEW = new Vector3(0, 125, 150);
 
-const CameraRig = ({ registry, selectedId, resetKey }) => {
+const CameraRig = ({ registry, selectedId, resetKey, reducedMotion }) => {
   const { camera, controls, size } = useThree();
   const flying = useRef(0);
   const overview = useMemo(() => OVERVIEW.clone().multiplyScalar(Math.max(1, 1.45 / (size.width / size.height))), [size.width, size.height]);
@@ -292,7 +293,7 @@ const CameraRig = ({ registry, selectedId, resetKey }) => {
 
     if (flying.current > 0) {
       flying.current -= delta;
-      const t = 1 - Math.pow(0.02, delta);
+      const t = reducedMotion ? 1 : 1 - Math.pow(0.02, delta);
       if (target) {
         const distance = Math.max(target.radius * 5, 6);
         const dir = camera.position.clone().sub(target.position).normalize();
@@ -315,18 +316,19 @@ const CameraRig = ({ registry, selectedId, resetKey }) => {
 const SolarScene = ({ bodies, selectedId, onSelect, speed, showOrbits, showLabels, onTick, resetKey }) => {
   const clock = useRef({ days: daysSinceJ2000(new Date()), speed });
   const registry = useRef({});
+  const quality = useMemo(graphicsProfile, []);
   const sun = bodies.find((b) => b.id === "sun");
   const planets = bodies.filter((b) => b.id !== "sun");
 
   return (
     <Canvas
-      dpr={[1, 2]}
-      camera={{ position: OVERVIEW.clone().multiplyScalar(2.6).toArray(), fov: 45, near: 0.1, far: 3000 }}
-      gl={{ antialias: true }}
+      dpr={quality.low ? quality.dpr : [1, 2]}
+      camera={{ position: OVERVIEW.clone().multiplyScalar(quality.reducedMotion ? 1 : 2.6).toArray(), fov: 45, near: 0.1, far: 3000 }}
+      gl={{ antialias: quality.antialias }}
     >
       <color attach="background" args={["#000509"]} />
       <ambientLight intensity={0.12} />
-      <Stars radius={600} depth={200} count={6000} factor={6} saturation={0} fade speed={0.4} />
+      <Stars radius={600} depth={200} count={Math.round(6000 * quality.stars)} factor={6} saturation={0} fade speed={quality.reducedMotion ? 0 : 0.4} />
       <Clock clock={clock} speed={speed} onTick={onTick} />
       {sun && <Sun body={sun} registry={registry} showLabels={showLabels} selected={selectedId === "sun"} onSelect={onSelect} />}
       {planets.map((body) => (
@@ -342,7 +344,7 @@ const SolarScene = ({ bodies, selectedId, onSelect, speed, showOrbits, showLabel
         />
       ))}
       <OrbitControls makeDefault enableDamping dampingFactor={0.08} minDistance={2} maxDistance={600} />
-      <CameraRig registry={registry} selectedId={selectedId} resetKey={resetKey} />
+      <CameraRig registry={registry} selectedId={selectedId} resetKey={resetKey} reducedMotion={quality.reducedMotion} />
       {showLabels && <LabelDeclutter registry={registry} selectedId={selectedId} />}
     </Canvas>
   );

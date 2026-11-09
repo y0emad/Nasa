@@ -6,6 +6,7 @@ import usePlanets from "../hooks/usePlanets";
 import useLaunches from "../hooks/useLaunches";
 
 import Centered from "../components/Centered";
+import { exoplanetId } from "../exoplanetId";
 import Header from "../components/Header";
 
 import Launch from "./Launch";
@@ -13,6 +14,7 @@ import History from "./History";
 import Upcoming from "./Upcoming";
 
 const SolarSystem = lazy(() => import("./SolarSystem"));
+const Exoplanets = lazy(() => import("./Exoplanets"));
 const LaunchSequence = lazy(() => import("../launch/LaunchSequence"));
 
 const styles = () => ({
@@ -33,7 +35,7 @@ const AppLayout = props => {
   const { sounds, classes } = props;
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const isSolar = pathname.startsWith("/solar-system");
+  const isSolar = pathname.startsWith("/solar-system") || pathname.startsWith("/exoplanets");
 
   const [frameVisible, setFrameVisible] = useState(true);
   const animateFrame = () => {
@@ -54,6 +56,7 @@ const AppLayout = props => {
     abortLaunch,
     launchRun,
     closeLaunchRun,
+    replayLaunch,
   } = useLaunches(onSuccessSound, onAbortSound, onFailureSound);
 
   const planets = usePlanets();
@@ -70,6 +73,10 @@ const AppLayout = props => {
             closeLaunchRun();
             navigate("/upcoming");
           }}
+          onFlyTo={launchRun.destination ? () => {
+            closeLaunchRun();
+            navigate(`/exoplanets?planet=${exoplanetId(launchRun.destination)}`);
+          } : undefined}
         />
       </Suspense>
     )}
@@ -90,12 +97,17 @@ const AppLayout = props => {
               <Route path="/" element={launch} />
               <Route path="/launch" element={launch} />
               <Route path="/upcoming" element={
-                <Upcoming entered={anim.entered} launches={launches} abortLaunch={abortLaunch} />
+                <Upcoming entered={anim.entered} launches={launches} abortLaunch={abortLaunch} replayLaunch={replayLaunch} />
               } />
               <Route path="/history" element={<History entered={anim.entered} launches={launches} />} />
               <Route path="/solar-system" element={
                 <Suspense fallback={<Loading animate />}>
                   <SolarSystem entered={anim.entered} sounds={sounds} />
+                </Suspense>
+              } />
+              <Route path="/exoplanets" element={
+                <Suspense fallback={<Loading animate />}>
+                  <Exoplanets entered={anim.entered} sounds={sounds} />
                 </Suspense>
               } />
               <Route path="*" element={<Navigate to="/launch" replace />} />

@@ -55,7 +55,20 @@ async function httpGetSolarSystem() {
   return await response.json();
 }
 
+async function httpGetExoplanets() {
+  const response = await fetch(`${API_URL}/exoplanets/all`);
+  if (!response.ok) throw new Error(`Exoplanet request failed: ${response.status}`);
+  return await response.json();
+}
+
+async function httpGetSpaceToday() {
+  const picture = await getJson("/space-today", null);
+  return picture && typeof picture.url === "string" ? picture : null;
+}
+
 export {
+  httpGetExoplanets,
+  httpGetSpaceToday,
   httpGetPlanets,
   httpGetLaunches,
   httpSubmitLaunch,

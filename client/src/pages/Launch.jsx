@@ -1,8 +1,12 @@
 import { useEffect, useMemo } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { Appear, Button, Loading, Paragraph } from "arwes";
 import Clickable from "../components/Clickable";
+import SpaceToday from "../components/SpaceToday";
 
 const Launch = props => {
+  const [params] = useSearchParams();
+  const destination = params.get("destination") ?? undefined;
   const selectorBody = useMemo(() => {
     return props.planets?.map(planet => 
       <option value={planet.kepler_name} key={planet._id}>{planet.kepler_name}</option>
@@ -10,7 +14,13 @@ const Launch = props => {
   }, [props.planets]);
 
   useEffect(() => {
-    import("../launch/LaunchSequence");
+    const prefetch = () => import("../launch/LaunchSequence");
+    if ("requestIdleCallback" in window) {
+      const id = window.requestIdleCallback(prefetch, { timeout: 6000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const id = setTimeout(prefetch, 3000);
+    return () => clearTimeout(id);
   }, []);
 
   const today = new Date().toISOString().split("T")[0];
@@ -22,6 +32,9 @@ const Launch = props => {
       <li>Planetary radius &lt; 1.6 times Earth's radius</li>
       <li>Effective stellar flux &gt; 0.36 times Earth's value and &lt; 1.11 times Earth's value</li>
     </ul>
+    <Paragraph>
+      Not sure where to go? <Link to="/exoplanets" style={{ color: "inherit" }}>Explore the planets in 3D</Link> first.
+    </Paragraph>
 
     <form className="launch-form" onSubmit={props.submitLaunch}>
       <label htmlFor="launch-day">Launch Date</label>
@@ -31,7 +44,7 @@ const Launch = props => {
       <label htmlFor="rocket-name">Rocket Type</label>
       <input type="text" id="rocket-name" name="rocket-name" defaultValue="Explorer IS1" />
       <label htmlFor="planets-selector">Destination Exoplanet</label>
-      <select id="planets-selector" name="planets-selector">
+      <select id="planets-selector" name="planets-selector" key={props.planets?.length ?? 0} defaultValue={destination}>
         {selectorBody}
       </select>
       <Clickable>
@@ -47,6 +60,7 @@ const Launch = props => {
         <Loading animate small />
       }
     </form>
+    <SpaceToday />
   </Appear>
 };
 

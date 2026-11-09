@@ -60,6 +60,18 @@ function useLaunches(onSuccessSound, onAbortSound, onFailureSound) {
 
   const closeLaunchRun = useCallback(() => setLaunchRun(null), []);
 
+  const replayLaunch = useCallback((launch) => {
+    setLaunchRun({
+      id: Date.now(),
+      mission: launch.mission,
+      rocket: launch.rocket,
+      destination: launch.destination,
+      flightNumber: launch.flightNumber,
+      status: "success",
+      replay: true,
+    });
+  }, []);
+
   const abortLaunch = useCallback(async (id) => {
     const response = await httpAbortLaunch(id);
 
@@ -78,6 +90,7 @@ function useLaunches(onSuccessSound, onAbortSound, onFailureSound) {
     abortLaunch,
     launchRun,
     closeLaunchRun,
+    replayLaunch,
     onLaunchSuccessSound: onSuccessSound,
     onLaunchFailureSound: onFailureSound,
   };

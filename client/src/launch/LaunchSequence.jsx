@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { prefersReducedMotion } from "../graphics";
 import LaunchScene, { TIMELINE } from "./LaunchScene";
 import { createLaunchAudio } from "./launchAudio";
 import "./launch.css";
@@ -25,7 +26,9 @@ const clock = (t) => {
   return `T${sign}${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 };
 
-const LaunchSequence = ({ run, sounds, onClose, onViewUpcoming }) => {
+const LaunchSequence = ({ run, sounds, onClose, onViewUpcoming, onFlyTo }) => {
+  const reducedMotion = useMemo(prefersReducedMotion, []);
+  const vibrate = useCallback((pattern) => !reducedMotion && navigator.vibrate?.(pattern), [reducedMotion]);
   const [telemetry, setTelemetry] = useState({ t: 0, phase: "countdown", altitude: 0, speed: 0 });
   const played = useRef({});
   const audio = useRef(null);
@@ -75,16 +78,16 @@ const LaunchSequence = ({ run, sounds, onClose, onViewUpcoming }) => {
     if (telemetry.phase === "ignition" && !played.current.ignition) {
       played.current.ignition = true;
       audio.current?.thud(0.8);
-      navigator.vibrate?.([250, 80, 400, 80, 900, 60, 1200]);
+      vibrate([250, 80, 400, 80, 900, 60, 1200]);
     }
     if (telemetry.phase === "separation" && !played.current.separation) {
       played.current.separation = true;
       audio.current?.thud(0.5);
-      navigator.vibrate?.(120);
+      vibrate(120);
     }
     if (telemetry.phase === "orbit") play("orbit", "success");
     if (telemetry.phase === "scrubbed") play("scrubbed", "warning");
-  }, [telemetry.phase, sounds]);
+  }, [telemetry.phase, sounds, vibrate]);
 
   useEffect(() => {
     const a = audio.current;
@@ -113,7 +116,13 @@ const LaunchSequence = ({ run, sounds, onClose, onViewUpcoming }) => {
   const flying = telemetry.t >= TIMELINE.liftoff;
 
   return (
-    <div className="launch-overlay" role="dialog" aria-modal="true" aria-label={`Launch of ${run.mission}`}>
+    <div
+      className="launch-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Launch of ${run.mission}`}
+      data-motion={reducedMotion ? "reduced" : "full"}
+    >
       <LaunchScene outcome={run.status} onTelemetry={onTelemetry} label={run.rocket} />
 
       <div className="launch-hud">
@@ -164,14 +173,21 @@ const LaunchSequence = ({ run, sounds, onClose, onViewUpcoming }) => {
 
         {done && (
           <div className="launch-card">
-            <h3>Mission launched</h3>
+            <h3>{run.replay ? "Launch replay complete" : "Mission launched"}</h3>
             <p>
               {run.mission} is on its way to <strong>{run.destination}</strong>
               {run.flightNumber ? ` as flight #${run.flightNumber}` : ""}.
             </p>
             <div className="launch-actions">
-              <button type="button" onClick={onViewUpcoming}>View upcoming missions</button>
-              <button type="button" className="secondary" onClick={onClose}>Schedule another</button>
+              {onFlyTo && (
+                <button type="button" onClick={onFlyTo}>Fly to {run.destination}</button>
+              )}
+              <button type="button" className={onFlyTo ? "secondary" : undefined} onClick={onViewUpcoming}>
+                View upcoming missions
+              </button>
+              {!run.replay && (
+                <button type="button" className="secondary" onClick={onClose}>Schedule another</button>
+              )}
             </div>
           </div>
         )}

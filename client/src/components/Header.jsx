@@ -7,6 +7,7 @@ const LINKS = [
   { to: "/upcoming", icon: "update", label: "Upcoming" },
   { to: "/history", icon: "history", label: "History" },
   { to: "/solar-system", icon: "public", label: "Solar System", short: "Solar" },
+  { to: "/exoplanets", icon: "travel_explore", label: "Exoplanets" },
 ];
 
 const styles = (theme) => ({
@@ -96,7 +97,7 @@ const styles = (theme) => ({
       display: "none",
     },
   },
-  "@media (max-width: 760px)": {
+  "@media (max-width: 900px)": {
     root: {
       width: "100%",
       minHeight: 0,
