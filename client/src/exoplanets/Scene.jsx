@@ -275,7 +275,8 @@ const CameraRig = ({ planet, view, tracker, reducedMotion }) => {
         controls.target.lerp(tracker.position, t);
       } else {
         const reach = orbitUnits(Math.max(planet.orbitAu, habitableZone(planet.star.luminositySun).outerAu));
-        const fit = Math.max(1, 1.5 / (size.width / size.height));
+        const aspect = size.width / size.height;
+        const fit = aspect < 1 ? 1.9 / aspect : Math.max(1, 1.5 / aspect);
         desired.set(0, reach * 1.05, reach * 1.55).multiplyScalar(fit);
         controls.target.lerp(origin, t);
       }

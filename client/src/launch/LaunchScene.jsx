@@ -1,7 +1,19 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Environment } from "@react-three/drei";
+import { Bloom, EffectComposer, ToneMapping, Vignette } from "@react-three/postprocessing";
+import { ToneMappingMode } from "postprocessing";
 import { AdditiveBlending, Color, FogExp2, MathUtils, NormalBlending, Vector3 } from "three";
-import { STAGE1_HEIGHT, StageOneModel, StageTwoModel } from "./Rocket";
+import {
+  FAIRING_BASE,
+  FairingHalf,
+  SPACECRAFT_BASE,
+  STAGE1_HEIGHT,
+  Spacecraft,
+  StageOneModel,
+  StageTwoModel,
+} from "./Rocket";
+import { EnvironmentSky, HAZE, LaunchSite, SkyDome, SUN_DIRECTION } from "./LaunchSite";
 import { graphicsProfile } from "../graphics";
 
 export const TIMELINE = {
@@ -12,22 +24,30 @@ export const TIMELINE = {
   maxQ: 6 + 5,
   separation: 6 + 9,
   secondIgnition: 6 + 9.8,
-  orbit: 6 + 14,
+  fairing: 6 + 12.5,
+  seco: 6 + 17,
+  payload: 6 + 18.5,
+  orbit: 6 + 21,
 };
 
-const DUSK = new Color("#1d3a5f");
 const SPACE = new Color("#000207");
 
-const BURN = TIMELINE.orbit - TIMELINE.liftoff;
+const BURN = TIMELINE.seco - TIMELINE.liftoff;
 const shakeAt = (t, throttle) => {
   if (t < TIMELINE.ignition) return 0;
   const s = t - TIMELINE.liftoff;
   const ignition = Math.min(1, (t - TIMELINE.ignition) / 1.4) * 0.7;
   const liftoff = s > 0 ? Math.exp(-s / 6) : 0;
   const maxQ = 0.45 * Math.exp(-Math.pow((s - 5.5) / 1.6, 2));
-  const separation = t > TIMELINE.separation ? 0.9 * Math.exp(-(t - TIMELINE.separation) * 3.5) : 0;
-  const secondJolt = t > TIMELINE.secondIgnition ? 0.5 * Math.exp(-(t - TIMELINE.secondIgnition) * 3) : 0;
-  return Math.max(ignition * (s > 0 ? Math.exp(-s / 6) : 1), liftoff) * throttle + maxQ * throttle + separation + secondJolt;
+  const jolt = (at, size, decay) => (t > at ? size * Math.exp(-(t - at) * decay) : 0);
+  return (
+    Math.max(ignition * (s > 0 ? Math.exp(-s / 6) : 1), liftoff) * throttle +
+    maxQ * throttle +
+    jolt(TIMELINE.separation, 0.9, 3.5) +
+    jolt(TIMELINE.secondIgnition, 0.5, 3) +
+    jolt(TIMELINE.fairing, 0.25, 4) +
+    jolt(TIMELINE.payload, 0.15, 4)
+  );
 };
 const rawAltitude = (s) => 0.6 * s * s + 0.12 * s * s * s;
 const rawSpeed = (s) => 1.2 * s + 0.36 * s * s;
@@ -35,6 +55,21 @@ const altitudeAt = (s) => (s <= BURN ? rawAltitude(s) : rawAltitude(BURN) + rawS
 const speedAt = (s) => (s <= BURN ? rawSpeed(s) : rawSpeed(BURN));
 const pitchAt = (s) => (s > 3 ? Math.min(0.85, (s - 3) * 0.075) : 0);
 const driftAt = (s) => (s > 3 ? 0.035 * Math.pow(Math.min(s, BURN) - 3, 3) + Math.max(0, s - BURN) * 30 : 0);
+
+const phaseAt = (t) => {
+  if (t < TIMELINE.ignition) return "countdown";
+  if (t < TIMELINE.liftoff) return "ignition";
+  if (t < TIMELINE.maxQ - 1) return "liftoff";
+  if (t < TIMELINE.maxQ + 2) return "maxq";
+  if (t < TIMELINE.separation) return "ascent";
+  if (t < TIMELINE.secondIgnition + 1) return "separation";
+  if (t < TIMELINE.fairing) return "second";
+  if (t < TIMELINE.fairing + 1.6) return "fairing";
+  if (t < TIMELINE.seco) return "second";
+  if (t < TIMELINE.payload) return "seco";
+  if (t < TIMELINE.orbit) return "payload";
+  return "orbit";
+};
 
 const vertexShader = `
   attribute float aSize;
@@ -287,96 +322,17 @@ const Vent = ({ sim, quality }) => {
 
 const StageOne = ({ sim, label, quality }) => (
   <group>
-    <StageOneModel sim={sim} label={label} />
+    <StageOneModel sim={sim} label={label} shadows={!quality.low} />
     <Flame sim={sim} stage={1} quality={quality} />
   </group>
 );
 
 const StageTwo = ({ sim, label, quality }) => (
   <group>
-    <StageTwoModel sim={sim} label={label} />
+    <StageTwoModel sim={sim} shadows={!quality.low} />
     <group position={[0, -0.6, 0]}>
       <Flame sim={sim} stage={2} tint="blue" length={0.7} quality={quality} />
     </group>
-  </group>
-);
-
-const Tower = ({ sim }) => {
-  const arm = useRef();
-  const beacon = useRef();
-  useFrame((state) => {
-    const t = sim.current.t;
-    const k = MathUtils.clamp((t - TIMELINE.armRetract) / 1.2, 0, 1);
-    arm.current.rotation.y = MathUtils.lerp(0, -1.3, k * k * (3 - 2 * k));
-    beacon.current.material.emissiveIntensity = Math.sin(state.clock.elapsedTime * 4) > 0 ? 3 : 0.2;
-  });
-  const rungs = [];
-  for (let y = 0.8; y < 17.5; y += 1.25) rungs.push(y);
-  return (
-    <group position={[-2.3, 0, 0]}>
-      {[
-        [-0.5, -0.5],
-        [0.5, -0.5],
-        [-0.5, 0.5],
-        [0.5, 0.5],
-      ].map(([x, z]) => (
-        <mesh key={`${x}${z}`} position={[x, 8.75, z]}>
-          <boxGeometry args={[0.08, 17.5, 0.08]} />
-          <meshStandardMaterial color="#7a3b26" roughness={0.8} />
-        </mesh>
-      ))}
-      {rungs.map((y) => (
-        <group key={y} position={[0, y, 0]}>
-          <mesh>
-            <boxGeometry args={[1.08, 0.06, 0.06]} />
-            <meshStandardMaterial color="#6b3322" />
-          </mesh>
-          <mesh rotation={[0, Math.PI / 2, 0]}>
-            <boxGeometry args={[1.08, 0.06, 0.06]} />
-            <meshStandardMaterial color="#6b3322" />
-          </mesh>
-        </group>
-      ))}
-      <group ref={arm} position={[0.5, 12.8, 0]}>
-        <mesh position={[0.75, 0, 0]}>
-          <boxGeometry args={[1.5, 0.22, 0.3]} />
-          <meshStandardMaterial color="#555b61" metalness={0.5} roughness={0.5} />
-        </mesh>
-      </group>
-      <mesh ref={beacon} position={[0, 17.65, 0]}>
-        <sphereGeometry args={[0.12, 12, 12]} />
-        <meshStandardMaterial color="#ff2a2a" emissive="#ff2a2a" emissiveIntensity={1} />
-      </mesh>
-    </group>
-  );
-};
-
-const Ground = () => (
-  <group>
-    <mesh rotation={[-Math.PI / 2, 0, 0]}>
-      <planeGeometry args={[3000, 3000]} />
-      <meshStandardMaterial color="#0e1813" roughness={1} />
-    </mesh>
-    <mesh position={[0, 0.15, 0]}>
-      <cylinderGeometry args={[4.2, 4.6, 0.3, 48]} />
-      <meshStandardMaterial color="#4a4e52" roughness={0.95} />
-    </mesh>
-    <mesh position={[0, 0.31, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-      <ringGeometry args={[1.2, 1.35, 48]} />
-      <meshStandardMaterial color="#c9a227" roughness={0.8} />
-    </mesh>
-    {[
-      [-60, -120],
-      [80, -160],
-      [-140, -220],
-      [150, -90],
-      [30, -260],
-    ].map(([x, z]) => (
-      <mesh key={`${x}${z}`} position={[x, 1.5, z]}>
-        <boxGeometry args={[6, 3, 6]} />
-        <meshStandardMaterial color="#14201b" roughness={1} />
-      </mesh>
-    ))}
   </group>
 );
 
@@ -409,57 +365,64 @@ const SkyStars = ({ sim, quality }) => {
   );
 };
 
-const Director = ({ sim, outcomeRef, onTelemetry, label, quality }) => {
+const PAD_CAMERA = new Vector3(21, 3.5, 40);
+const PAD_LOOK = new Vector3(0, 8.5, 0);
+const PAD_ANGLE = Math.atan2(PAD_CAMERA.x, PAD_CAMERA.z);
+const PAD_RADIUS = Math.hypot(PAD_CAMERA.x, PAD_CAMERA.z);
+
+const Director = ({ sim, outcomeRef, onTelemetry, label, quality, mode }) => {
   const stage1 = useRef();
   const stage2 = useRef();
+  const halves = [useRef(), useRef()];
+  const craft = useRef();
+  const deploy = useRef(0);
   const { camera, scene } = useThree();
-  const look = useMemo(() => new Vector3(0, 8.5, 0), []);
+  const look = useMemo(() => PAD_LOOK.clone(), []);
   const desired = useMemo(() => new Vector3(), []);
   const offset = useMemo(() => new Vector3(21, 2.5, 40), []);
   const lookOffset = useRef(7.5);
   const lastTick = useRef(0);
   const sep = useRef(null);
+  const fairingSep = useRef(null);
+  const previous2 = useMemo(() => new Vector3(), []);
+  const velocity2 = useMemo(() => new Vector3(), []);
+  const pad = mode === "pad";
 
   useEffect(() => {
-    scene.fog = new FogExp2(DUSK.clone(), 0.0045);
-    scene.background = DUSK.clone();
-    camera.position.set(21, 3.5, 40);
-    camera.lookAt(0, 8.5, 0);
-  }, [camera, scene]);
+    scene.fog = new FogExp2(HAZE.clone(), 0.0025);
+    scene.background = null;
+    camera.position.copy(PAD_CAMERA);
+    camera.lookAt(PAD_LOOK);
+    if (pad) sim.current.t = 1.5;
+  }, [camera, scene, pad, sim]);
 
   useFrame((state, delta) => {
-    const dt = Math.min(delta, 0.1);
+    const dt = Math.min(delta, 0.25);
     const s0 = sim.current;
     const outcome = outcomeRef.current;
 
-    if (s0.phase !== "scrubbed") {
+    const holding = !pad && outcome === "pending" && s0.t >= TIMELINE.holdAt;
+    if (pad) {
+      s0.phase = "pad";
+    } else if (s0.phase !== "scrubbed") {
       if (outcome === "failed" && s0.t < TIMELINE.ignition) {
         s0.phase = "scrubbed";
-      } else if (outcome === "pending" && s0.t >= TIMELINE.holdAt) {
+      } else if (holding) {
         s0.phase = "hold";
       } else {
         s0.t += dt;
+        s0.phase = phaseAt(s0.t);
       }
     }
 
     const t = s0.t;
     const s = Math.max(0, t - TIMELINE.liftoff);
-    const holding = outcome === "pending" && t >= TIMELINE.holdAt;
-    if (s0.phase !== "scrubbed" && !holding) {
-      s0.phase =
-        t < TIMELINE.ignition ? "countdown"
-          : t < TIMELINE.liftoff ? "ignition"
-            : t < TIMELINE.maxQ - 1 ? "liftoff"
-              : t < TIMELINE.maxQ + 2 ? "maxq"
-                : t < TIMELINE.separation ? "ascent"
-                  : t < TIMELINE.secondIgnition + 1 ? "separation"
-                    : t < TIMELINE.orbit ? "second"
-                      : "orbit";
-    }
-
     const ignitionK = MathUtils.clamp((t - TIMELINE.ignition) / 0.9, 0, 1);
-    s0.throttle1 = s0.phase === "scrubbed" ? 0 : t < TIMELINE.separation ? ignitionK : 0;
-    s0.throttle2 = t > TIMELINE.secondIgnition ? Math.min(1, (t - TIMELINE.secondIgnition) / 0.5) : 0;
+    s0.throttle1 = s0.phase === "scrubbed" || pad ? 0 : t < TIMELINE.separation ? ignitionK : 0;
+    const on2 = MathUtils.clamp((t - TIMELINE.secondIgnition) / 0.5, 0, 1);
+    const off2 = MathUtils.clamp(1 - (t - TIMELINE.seco) / 0.4, 0, 1);
+    s0.throttle2 = t > TIMELINE.secondIgnition ? on2 * off2 : 0;
+    s0.mvacHeat = t > TIMELINE.seco ? Math.exp(-(t - TIMELINE.seco) / 2.5) : 0;
 
     const altitude = altitudeAt(s);
     const pitch = pitchAt(s);
@@ -471,16 +434,17 @@ const Director = ({ sim, outcomeRef, onTelemetry, label, quality }) => {
     const rocketY = altitude + 0.95;
     const up = new Vector3(-Math.sin(pitch), Math.cos(pitch), 0);
 
+    previous2.copy(stage2.current.position);
     stage2.current.position.set(x, rocketY, 0).addScaledVector(up, STAGE1_HEIGHT);
     stage2.current.rotation.set(0, 0, pitch);
+    if (dt > 0) velocity2.copy(stage2.current.position).sub(previous2).divideScalar(dt);
 
     if (t < TIMELINE.separation) {
       stage1.current.position.set(x, rocketY, 0);
       stage1.current.rotation.set(0, 0, pitch);
     } else {
       if (!sep.current) {
-        const velocity = up.clone().multiplyScalar(speedAt(s) * 0.6);
-        sep.current = { velocity, spin: 0.5 + Math.random() * 0.4 };
+        sep.current = { velocity: up.clone().multiplyScalar(speedAt(s) * 0.6), spin: 0.5 + Math.random() * 0.4 };
       }
       sep.current.velocity.y -= 22 * dt;
       stage1.current.position.addScaledVector(sep.current.velocity, dt);
@@ -489,26 +453,58 @@ const Director = ({ sim, outcomeRef, onTelemetry, label, quality }) => {
     }
     s0.nozzle.copy(stage1.current.position);
 
-    const focus = t < TIMELINE.separation ? stage1.current.position : stage2.current.position;
-    if (s <= 0) {
-      desired.set(21, 3.5, 40);
-      look.lerp(new Vector3(0, 8.5, 0), 1 - Math.exp(-3 * dt));
+    const side = new Vector3(Math.cos(pitch), Math.sin(pitch), 0);
+    halves.forEach((half, i) => {
+      const dir = i === 0 ? 1 : -1;
+      const h = half.current;
+      if (t < TIMELINE.fairing) {
+        h.position.copy(stage2.current.position).addScaledVector(up, FAIRING_BASE);
+        h.rotation.set(0, 0, pitch);
+        return;
+      }
+      if (!fairingSep.current) {
+        fairingSep.current = [1, -1].map((d) => ({
+          velocity: velocity2.clone().addScaledVector(side, d * 2.2),
+          spin: 0.9 + Math.random() * 0.3,
+        }));
+      }
+      const state2 = fairingSep.current[i];
+      state2.velocity.addScaledVector(up, -6 * dt);
+      h.position.addScaledVector(state2.velocity, dt);
+      h.rotation.z -= dir * state2.spin * dt;
+      h.rotation.y += state2.spin * 0.3 * dt;
+    });
+
+    const afterPayload = Math.max(0, t - TIMELINE.payload);
+    craft.current.position
+      .copy(stage2.current.position)
+      .addScaledVector(up, SPACECRAFT_BASE + 0.9 * afterPayload + 0.25 * afterPayload * afterPayload);
+    craft.current.rotation.set(0, afterPayload * 0.15, pitch);
+    deploy.current = MathUtils.clamp((afterPayload - 0.8) / 2.5, 0, 1);
+
+    const focus = afterPayload > 0 ? craft.current.position : t < TIMELINE.separation ? stage1.current.position : stage2.current.position;
+    if (pad) {
+      const a = PAD_ANGLE + (quality.reducedMotion ? 0 : state.clock.elapsedTime * 0.04);
+      desired.set(Math.sin(a) * PAD_RADIUS, PAD_CAMERA.y, Math.cos(a) * PAD_RADIUS);
+      camera.position.lerp(desired, 1 - Math.exp(-2 * dt));
+      look.lerp(PAD_LOOK, 1 - Math.exp(-3 * dt));
+    } else if (s <= 0) {
+      camera.position.lerp(PAD_CAMERA, 1 - Math.exp(-3 * dt));
+      look.lerp(PAD_LOOK, 1 - Math.exp(-3 * dt));
     } else {
       const k = MathUtils.clamp(s / 8, 0, 1);
       const upper = t >= TIMELINE.separation;
-      if (upper) desired.set(10, -2.5, 15);
+      if (afterPayload > 0) desired.set(3.2, 1.4, 6.5);
+      else if (upper) desired.set(10, -2.5, 15);
       else desired.set(MathUtils.lerp(21, 19, k), MathUtils.lerp(2.5, -5, k), MathUtils.lerp(40, 30, k));
       offset.lerp(desired, 1 - Math.exp(-1.5 * dt));
-      lookOffset.current = MathUtils.lerp(lookOffset.current, upper ? 3 : MathUtils.lerp(7.5, 8, k), 1 - Math.exp(-2 * dt));
+      const target = afterPayload > 0 ? 0.4 : upper ? 3 : MathUtils.lerp(7.5, 8, k);
+      lookOffset.current = MathUtils.lerp(lookOffset.current, target, 1 - Math.exp(-2 * dt));
       look.copy(focus).addScaledVector(up, lookOffset.current);
-    }
-    if (s <= 0) {
-      camera.position.lerp(desired, 1 - Math.exp(-3 * dt));
-    } else {
       camera.position.copy(focus).add(offset);
     }
 
-    const shake = quality.reducedMotion ? 0 : shakeAt(t, s0.throttle1);
+    const shake = quality.reducedMotion || pad ? 0 : shakeAt(t, s0.throttle1);
     s0.shake = shake;
     const time = state.clock.elapsedTime;
     const nx = Math.sin(time * 41.3) * 0.6 + Math.sin(time * 23.1 + 1.7) * 0.4 + (Math.random() - 0.5) * 0.5;
@@ -522,9 +518,8 @@ const Director = ({ sim, outcomeRef, onTelemetry, label, quality }) => {
     camera.rotateY(nx * shake * 0.012);
 
     const sky = MathUtils.clamp(altitude / 320, 0, 1);
-    scene.background.copy(DUSK).lerp(SPACE, sky);
-    scene.fog.color.copy(scene.background);
-    scene.fog.density = MathUtils.lerp(0.0045, 0.0006, sky);
+    scene.fog.color.copy(HAZE).lerp(SPACE, sky);
+    scene.fog.density = MathUtils.lerp(0.0025, 0.00003, sky);
 
     if (state.clock.elapsedTime - lastTick.current > 0.1) {
       lastTick.current = state.clock.elapsedTime;
@@ -540,11 +535,56 @@ const Director = ({ sim, outcomeRef, onTelemetry, label, quality }) => {
       <group ref={stage2}>
         <StageTwo sim={sim} label={label} quality={quality} />
       </group>
+      <group ref={halves[0]}>
+        <FairingHalf side={1} shadows={!quality.low} />
+      </group>
+      <group ref={halves[1]}>
+        <FairingHalf side={-1} shadows={!quality.low} />
+      </group>
+      <group ref={craft}>
+        <Spacecraft deploy={deploy} shadows={!quality.low} />
+      </group>
     </>
   );
 };
 
-const LaunchScene = ({ outcome, onTelemetry, label }) => {
+const Lights = ({ quality }) => {
+  const sun = useMemo(() => SUN_DIRECTION.clone().multiplyScalar(80), []);
+  return (
+    <>
+      <hemisphereLight args={["#6f86b8", "#2a2420", 0.35]} />
+      <directionalLight
+        position={sun}
+        intensity={1.4}
+        color="#ffb27a"
+        castShadow={!quality.low}
+        shadow-mapSize={[2048, 2048]}
+        shadow-bias={-0.0004}
+        shadow-normalBias={0.02}
+        shadow-camera-left={-26}
+        shadow-camera-right={26}
+        shadow-camera-top={26}
+        shadow-camera-bottom={-26}
+        shadow-camera-near={10}
+        shadow-camera-far={180}
+      />
+      <directionalLight position={[25, 12, 40]} intensity={0.35} color="#c9d6ff" />
+    </>
+  );
+};
+
+const Effects = ({ quality }) => {
+  if (quality.low) return null;
+  return (
+    <EffectComposer multisampling={4} disableNormalPass>
+      <Bloom mipmapBlur intensity={0.75} luminanceThreshold={1} luminanceSmoothing={0.2} />
+      <Vignette offset={0.3} darkness={0.55} />
+      <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
+    </EffectComposer>
+  );
+};
+
+const LaunchScene = ({ outcome, onTelemetry, label, mode = "launch" }) => {
   const outcomeRef = useRef(outcome);
   outcomeRef.current = outcome;
   const sim = useRef({
@@ -560,16 +600,23 @@ const LaunchScene = ({ outcome, onTelemetry, label }) => {
   const quality = useMemo(graphicsProfile, []);
 
   return (
-    <Canvas dpr={quality.dpr} camera={{ fov: 50, near: 0.1, far: 4000 }} gl={{ antialias: quality.antialias }}>
-      <hemisphereLight args={["#6d8fbf", "#1a1410", 0.55]} />
-      <directionalLight position={[-30, 40, 20]} intensity={0.9} color="#cfd9ff" />
-      <directionalLight position={[25, 12, 40]} intensity={0.75} color="#e6eeff" />
+    <Canvas
+      shadows={!quality.low}
+      dpr={quality.dpr}
+      camera={{ fov: 50, near: 0.3, far: 30000 }}
+      gl={{ antialias: quality.antialias }}
+    >
+      <Environment resolution={128} frames={1}>
+        <EnvironmentSky />
+      </Environment>
+      <Lights quality={quality} />
+      <SkyDome sim={sim} low={quality.low} />
       <SkyStars sim={sim} quality={quality} />
-      <Ground />
-      <Tower sim={sim} />
+      <LaunchSite sim={sim} quality={quality} />
       <Smoke sim={sim} quality={quality} />
       <Vent sim={sim} quality={quality} />
-      <Director sim={sim} outcomeRef={outcomeRef} onTelemetry={onTelemetry} label={label} quality={quality} />
+      <Director sim={sim} outcomeRef={outcomeRef} onTelemetry={onTelemetry} label={label} quality={quality} mode={mode} />
+      <Effects quality={quality} />
     </Canvas>
   );
 };

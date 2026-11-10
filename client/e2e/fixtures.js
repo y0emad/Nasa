@@ -49,6 +49,10 @@ export const LAUNCHES = [
     flightNumber: 101, mission: "Kepler Pathfinder", rocket: "Explorer IS1", launchDate: inDays(40),
     destination: "Kepler-452 b", customers: ["NASA"], upcoming: true, success: true,
   },
+  {
+    flightNumber: 99, mission: "Deep Reach", rocket: "Explorer IS1", launchDate: inDays(-3.2),
+    destination: "Kepler-62 f", customers: ["NASA"], upcoming: true, success: true,
+  },
 ];
 
 export const SPACE_TODAY = {
