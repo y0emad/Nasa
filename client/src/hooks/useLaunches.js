@@ -67,8 +67,9 @@ function useLaunches(onSuccessSound, onAbortSound, onFailureSound) {
       rocket: launch.rocket,
       destination: launch.destination,
       flightNumber: launch.flightNumber,
+      launchDate: launch.launchDate,
       status: "success",
-      replay: true,
+      mode: new Date(launch.launchDate).getTime() > Date.now() ? "pad" : "cruise",
     });
   }, []);
 

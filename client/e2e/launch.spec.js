@@ -1,6 +1,7 @@
 import { expect, fillLaunchForm, test } from "./fixtures";
 
-test.describe.configure({ timeout: 120_000 });
+test.describe.configure({ timeout: 150_000 });
+test.use({ viewport: { width: 800, height: 500 } });
 
 const launch = (page) => page.getByRole("button", { name: /Launch Mission/ }).click();
 
@@ -22,7 +23,10 @@ test("an accepted mission flies to orbit and offers a trip to its planet", async
   await expect(overlay).toBeVisible();
   await expect(overlay.locator(".launch-clock")).toHaveText(/^T-00:0\d$/);
 
-  await expect(overlay.getByRole("heading", { name: "Mission launched" })).toBeVisible({ timeout: 90_000 });
+  await expect(overlay.locator(".launch-status")).toHaveText("Fairing separation", { timeout: 90_000 });
+  await expect(overlay.locator(".launch-status")).toHaveText("Spacecraft separation", { timeout: 60_000 });
+  await expect(overlay.getByRole("heading", { name: "Mission launched" })).toBeVisible({ timeout: 60_000 });
+  await expect(overlay.locator(".launch-status")).toHaveText("Spacecraft en route to Kepler-452 b");
   await expect(overlay).toContainText("as flight #217");
   expect(api.state.created).toHaveLength(1);
   expect(api.state.created[0]).toMatchObject({ mission: "Kepler Pathfinder", destination: "Kepler-452 b" });

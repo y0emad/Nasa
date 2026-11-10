@@ -27,20 +27,40 @@ test("an unknown planet in the link falls back to the first one", async ({ page,
   await expect(page.getByRole("tab", { name: "Kepler-62 f" })).toHaveAttribute("aria-selected", "true");
 });
 
-test("upcoming missions count down and can be watched again", async ({ page, api }) => {
-  test.setTimeout(120_000);
+test("upcoming missions count down to their launch", async ({ page, api }) => {
   await page.goto("/upcoming");
-  const countdown = page.getByTestId("countdown");
-  await expect(countdown).toHaveText(/^T-(39|40)d \d{2}:\d{2}:\d{2}$/);
-  const first = await countdown.textContent();
-  await expect(countdown).not.toHaveText(first);
+  const future = page.getByRole("row", { name: /Kepler Pathfinder/ }).getByTestId("countdown");
+  await expect(future).toHaveText(/^T-(39|40)d \d{2}:\d{2}:\d{2}$/);
+  const first = await future.textContent();
+  await expect(future).not.toHaveText(first);
+  await expect(page.getByRole("row", { name: /Deep Reach/ }).getByTestId("countdown")).toHaveText("Window open");
+});
 
+test("watching a mission that has not launched shows it on the pad", async ({ page, api }) => {
+  await page.goto("/upcoming");
   await page.getByRole("button", { name: "Watch the launch of flight 101" }).click();
   const overlay = page.getByRole("dialog", { name: "Launch of Kepler Pathfinder" });
-  await expect(overlay).toBeVisible();
-  await expect(overlay).toContainText("Flight #101");
-  await expect(overlay.getByRole("heading", { name: "Launch replay complete" })).toBeVisible({ timeout: 90_000 });
-  await expect(overlay.getByRole("button", { name: "Schedule another" })).toHaveCount(0);
+  await expect(overlay).toHaveAttribute("data-mode", "pad", { timeout: 30_000 });
+  await expect(overlay.locator(".launch-clock")).toHaveText(/^T-(39|40)d \d{2}:\d{2}:\d{2}$/);
+  await expect(overlay.locator(".launch-status")).toHaveText("On the pad — waiting for the launch window");
+  await expect(overlay.getByRole("heading", { name: "Waiting for launch" })).toBeVisible();
+  await page.waitForTimeout(3000);
+  await expect(overlay.locator(".launch-status")).toHaveText("On the pad — waiting for the launch window");
+  expect(api.state.created).toHaveLength(0);
+
+  await overlay.getByRole("button", { name: "See Kepler-452 b" }).click();
+  await expect(page).toHaveURL(/\/exoplanets\?planet=kepler-452-b$/);
+});
+
+test("watching a mission whose date has passed joins it in flight", async ({ page, api }) => {
+  await page.goto("/upcoming");
+  await page.getByRole("button", { name: "Watch the launch of flight 99" }).click();
+  const overlay = page.getByRole("dialog", { name: "Launch of Deep Reach" });
+  await expect(overlay).toHaveAttribute("data-mode", "cruise", { timeout: 30_000 });
+  await expect(overlay.locator(".launch-clock")).toHaveText(/^T\+3d \d{2}:\d{2}:\d{2}$/);
+  await expect(overlay.locator(".launch-status")).toHaveText("Spacecraft en route to Kepler-62 f");
+  await expect(overlay.getByRole("heading", { name: "In flight" })).toBeVisible();
+  await expect(overlay.getByRole("button", { name: /Skip/ })).toHaveCount(0);
   expect(api.state.created).toHaveLength(0);
 });
 

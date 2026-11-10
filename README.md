@@ -106,12 +106,22 @@ nothing to show.
 
 ## Launch sequence
 
-Scheduling a mission plays a 3D launch: countdown, tower arm retract, ignition, liftoff, max Q, stage separation
-and second stage burn. The request to the server runs during the countdown. If it is still pending the count holds
-at T-2, and if the server rejects the launch it is scrubbed before ignition and shows the reason.
+Scheduling a mission plays a 3D launch from a pad at dusk: countdown, tower arm retract, ignition, liftoff,
+max Q, first stage separation, second stage burn, fairing separation, second engine cutoff and spacecraft
+separation, after which the spacecraft unfolds its solar panels and flies on with no engine running. The Earth,
+textured from a real map and turned so the pad sits on Florida, curves away below as the rocket climbs.
 
-**Watch** on the Upcoming page plays the same launch again for a mission that is already scheduled, without
-sending anything to the server.
+The request to the server runs during the countdown. If it is still pending the count holds at T-2, and if the
+server rejects the launch it is scrubbed before ignition and shows the reason.
+
+The rocket, fairing and spacecraft use textures drawn in code at load time: painted panels with weld lines and
+rivets, frost on the oxygen tank while it sits on the pad, carbon fibre, engine bells and gold foil, each with its
+own roughness and normal map. The pad has a flame trench, a launch mount, a service tower, lightning masts, a water
+tower and floodlights, under a physically based sky.
+
+**Watch** on the Upcoming page opens a scheduled mission where it is right now, without sending anything to
+the server: still on the pad with a countdown to its date, or, when the date has passed, the spacecraft in
+flight with the time since launch.
 
 ## Performance and accessibility
 

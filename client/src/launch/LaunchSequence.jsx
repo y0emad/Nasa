@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { prefersReducedMotion } from "../graphics";
 import LaunchScene, { TIMELINE } from "./LaunchScene";
+import CruiseScene from "./CruiseScene";
 import { createLaunchAudio } from "./launchAudio";
 import "./launch.css";
 
@@ -12,24 +13,48 @@ const STATUS = {
   maxq: "Max Q — peak aerodynamic pressure",
   ascent: "Vehicle pitching downrange",
   separation: "MECO — stage separation confirmed",
-  second: "Second stage ignition",
-  orbit: "Orbit insertion — en route",
+  second: "Second stage burn",
+  fairing: "Fairing separation",
+  seco: "SECO — second engine cutoff",
+  payload: "Spacecraft separation",
+  pad: "On the pad — waiting for the launch window",
   scrubbed: "Launch scrubbed",
 };
+
+const pad2 = (value) => String(value).padStart(2, "0");
 
 const clock = (t) => {
   const delta = t - TIMELINE.liftoff;
   const sign = delta < 0 ? "-" : "+";
   const total = Math.abs(Math.floor(delta));
-  const seconds = total % 60;
-  const minutes = Math.floor(total / 60);
-  return `T${sign}${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  return `T${sign}${pad2(Math.floor(total / 60))}:${pad2(total % 60)}`;
+};
+
+const missionClock = (ms) => {
+  const sign = ms < 0 ? "-" : "+";
+  const total = Math.floor(Math.abs(ms) / 1000);
+  const days = Math.floor(total / 86400);
+  const time = `${pad2(Math.floor((total % 86400) / 3600))}:${pad2(Math.floor((total % 3600) / 60))}:${pad2(total % 60)}`;
+  return `T${sign}${days > 0 ? `${days}d ` : ""}${time}`;
+};
+
+const useNow = (active) => {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) return undefined;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [active]);
+  return now;
 };
 
 const LaunchSequence = ({ run, sounds, onClose, onViewUpcoming, onFlyTo }) => {
+  const mode = run.mode ?? "launch";
+  const live = mode === "launch";
   const reducedMotion = useMemo(prefersReducedMotion, []);
   const vibrate = useCallback((pattern) => !reducedMotion && navigator.vibrate?.(pattern), [reducedMotion]);
-  const [telemetry, setTelemetry] = useState({ t: 0, phase: "countdown", altitude: 0, speed: 0 });
+  const [telemetry, setTelemetry] = useState({ t: 0, phase: mode === "pad" ? "pad" : "countdown", altitude: 0, speed: 0 });
+  const now = useNow(!live);
   const played = useRef({});
   const audio = useRef(null);
   const lastBeep = useRef(null);
@@ -42,10 +67,11 @@ const LaunchSequence = ({ run, sounds, onClose, onViewUpcoming, onFlyTo }) => {
   });
 
   useEffect(() => {
+    if (!live) return undefined;
     audio.current = createLaunchAudio();
     audio.current?.resume();
     return () => audio.current?.close();
-  }, []);
+  }, [live]);
 
   useEffect(() => {
     audio.current?.setMuted(muted);
@@ -70,30 +96,36 @@ const LaunchSequence = ({ run, sounds, onClose, onViewUpcoming, onFlyTo }) => {
   }, [onClose]);
 
   useEffect(() => {
-    const play = (key, name) => {
+    if (!live) return;
+    const once = (key, action) => {
       if (played.current[key]) return;
       played.current[key] = true;
-      sounds?.[name]?.play();
+      action();
     };
-    if (telemetry.phase === "ignition" && !played.current.ignition) {
-      played.current.ignition = true;
-      audio.current?.thud(0.8);
-      vibrate([250, 80, 400, 80, 900, 60, 1200]);
+    const { phase } = telemetry;
+    if (phase === "ignition") {
+      once("ignition", () => {
+        audio.current?.thud(0.8);
+        vibrate([250, 80, 400, 80, 900, 60, 1200]);
+      });
     }
-    if (telemetry.phase === "separation" && !played.current.separation) {
-      played.current.separation = true;
-      audio.current?.thud(0.5);
-      vibrate(120);
+    if (phase === "separation") {
+      once("separation", () => {
+        audio.current?.thud(0.5);
+        vibrate(120);
+      });
     }
-    if (telemetry.phase === "orbit") play("orbit", "success");
-    if (telemetry.phase === "scrubbed") play("scrubbed", "warning");
-  }, [telemetry.phase, sounds, vibrate]);
+    if (phase === "fairing") once("fairing", () => audio.current?.thud(0.25));
+    if (phase === "payload") once("payload", () => audio.current?.thud(0.15));
+    if (phase === "orbit") once("orbit", () => sounds?.success?.play());
+    if (phase === "scrubbed") once("scrubbed", () => sounds?.warning?.play());
+  }, [telemetry, sounds, vibrate, live]);
 
   useEffect(() => {
     const a = audio.current;
-    if (!a) return;
+    if (!a || !live) return;
     const { t, phase: p, altitude } = telemetry;
-    if ((p === "countdown") && t < TIMELINE.ignition) {
+    if (p === "countdown" && t < TIMELINE.ignition) {
       const second = Math.floor(t);
       if (second !== lastBeep.current) {
         lastBeep.current = second;
@@ -104,16 +136,23 @@ const LaunchSequence = ({ run, sounds, onClose, onViewUpcoming, onFlyTo }) => {
     const thrust =
       p === "ignition" ? Math.min(1, (t - TIMELINE.ignition) / 1.4) * 0.85
         : ["liftoff", "maxq", "ascent"].includes(p) ? 1
-          : p === "second" ? 0.4
-            : p === "orbit" ? Math.max(0, 0.4 - (t - TIMELINE.orbit) * 0.1)
+          : ["second", "fairing"].includes(p) ? 0.4
+            : p === "seco" ? Math.max(0, 0.4 - (t - TIMELINE.seco) * 1)
               : 0;
-    a.setThrust(thrust, p === "second" || p === "orbit" ? 0.85 : far);
-  }, [telemetry]);
+    a.setThrust(thrust, ["second", "fairing", "seco"].includes(p) ? 0.85 : far);
+  }, [telemetry, live]);
 
   const { phase } = telemetry;
-  const done = phase === "orbit";
+  const done = live && phase === "orbit";
   const scrubbed = phase === "scrubbed";
-  const flying = telemetry.t >= TIMELINE.liftoff;
+  const flying = live && telemetry.t >= TIMELINE.liftoff;
+  const sinceLaunch = now - new Date(run.launchDate).getTime();
+
+  const clockText = scrubbed ? "SCRUB" : live ? clock(telemetry.t) : missionClock(sinceLaunch);
+  const status =
+    mode === "cruise" || phase === "orbit"
+      ? `Spacecraft en route to ${run.destination}`
+      : STATUS[phase];
 
   return (
     <div
@@ -122,8 +161,13 @@ const LaunchSequence = ({ run, sounds, onClose, onViewUpcoming, onFlyTo }) => {
       aria-modal="true"
       aria-label={`Launch of ${run.mission}`}
       data-motion={reducedMotion ? "reduced" : "full"}
+      data-mode={mode}
     >
-      <LaunchScene outcome={run.status} onTelemetry={onTelemetry} label={run.rocket} />
+      {mode === "cruise" ? (
+        <CruiseScene />
+      ) : (
+        <LaunchScene outcome={run.status} onTelemetry={onTelemetry} label={run.rocket} mode={mode} />
+      )}
 
       <div className="launch-hud">
         <div className="launch-top">
@@ -136,29 +180,31 @@ const LaunchSequence = ({ run, sounds, onClose, onViewUpcoming, onFlyTo }) => {
             </span>
           </div>
           <div className="launch-buttons">
-          <button
-            type="button"
-            className="launch-close"
-            onClick={() => {
-              audio.current?.resume();
-              setMuted((m) => !m);
-            }}
-            aria-label={muted ? "Turn sound on" : "Turn sound off"}
-          >
-            {muted ? "🔇" : "🔊"}
-          </button>
-          <button type="button" className="launch-close" onClick={onClose} aria-label="Close launch view">
-            {done || scrubbed ? "✕" : "Skip ✕"}
-          </button>
+            {live && (
+              <button
+                type="button"
+                className="launch-close"
+                onClick={() => {
+                  audio.current?.resume();
+                  setMuted((m) => !m);
+                }}
+                aria-label={muted ? "Turn sound on" : "Turn sound off"}
+              >
+                {muted ? "🔇" : "🔊"}
+              </button>
+            )}
+            <button type="button" className="launch-close" onClick={onClose} aria-label="Close launch view">
+              {done || scrubbed || !live ? "✕" : "Skip ✕"}
+            </button>
           </div>
         </div>
 
         <div className={`launch-clock ${phase === "hold" ? "is-hold" : ""} ${scrubbed ? "is-scrubbed" : ""}`}>
-          {scrubbed ? "SCRUB" : clock(telemetry.t)}
+          {clockText}
         </div>
-        <div className={`launch-status ${scrubbed ? "is-scrubbed" : ""}`}>{STATUS[phase]}</div>
+        <div className={`launch-status ${scrubbed ? "is-scrubbed" : ""}`}>{status}</div>
 
-        {flying && !scrubbed && (
+        {flying && !scrubbed && phase !== "orbit" && phase !== "payload" && (
           <div className="launch-telemetry">
             <div>
               <span className="launch-label">Altitude</span>
@@ -171,23 +217,48 @@ const LaunchSequence = ({ run, sounds, onClose, onViewUpcoming, onFlyTo }) => {
           </div>
         )}
 
+        {mode === "cruise" && (
+          <div className="launch-card">
+            <h3>In flight</h3>
+            <p>
+              Launched on {new Date(run.launchDate).toDateString()}. The spacecraft has been flying for{" "}
+              {Math.max(1, Math.floor(sinceLaunch / 86400000) + 1)} day{sinceLaunch >= 86400000 ? "s" : ""} on its way to{" "}
+              <strong>{run.destination}</strong>.
+            </p>
+            <div className="launch-actions">
+              {onFlyTo && <button type="button" onClick={onFlyTo}>See {run.destination}</button>}
+              <button type="button" className="secondary" onClick={onClose}>Close</button>
+            </div>
+          </div>
+        )}
+
+        {mode === "pad" && (
+          <div className="launch-card">
+            <h3>Waiting for launch</h3>
+            <p>
+              {run.mission} lifts off on {new Date(run.launchDate).toDateString()} and heads for{" "}
+              <strong>{run.destination}</strong>.
+            </p>
+            <div className="launch-actions">
+              {onFlyTo && <button type="button" onClick={onFlyTo}>See {run.destination}</button>}
+              <button type="button" className="secondary" onClick={onClose}>Close</button>
+            </div>
+          </div>
+        )}
+
         {done && (
           <div className="launch-card">
-            <h3>{run.replay ? "Launch replay complete" : "Mission launched"}</h3>
+            <h3>Mission launched</h3>
             <p>
               {run.mission} is on its way to <strong>{run.destination}</strong>
               {run.flightNumber ? ` as flight #${run.flightNumber}` : ""}.
             </p>
             <div className="launch-actions">
-              {onFlyTo && (
-                <button type="button" onClick={onFlyTo}>Fly to {run.destination}</button>
-              )}
+              {onFlyTo && <button type="button" onClick={onFlyTo}>Fly to {run.destination}</button>}
               <button type="button" className={onFlyTo ? "secondary" : undefined} onClick={onViewUpcoming}>
                 View upcoming missions
               </button>
-              {!run.replay && (
-                <button type="button" className="secondary" onClick={onClose}>Schedule another</button>
-              )}
+              <button type="button" className="secondary" onClick={onClose}>Schedule another</button>
             </div>
           </div>
         )}
