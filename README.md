@@ -99,10 +99,11 @@ other way and fills in the launch form.
 
 ## Picture of the day
 
-`GET /space-today` returns NASA's Astronomy Picture of the Day. When that API is down, it returns the latest
-picture of the whole Earth from NASA's EPIC camera on the DSCOVR spacecraft instead. The answer is cached for an
-hour, and if both sources fail the last good picture is served. The launch page hides the section if there is
-nothing to show.
+`GET /space-today` returns NASA's Astronomy Picture of the Day. APOD now lives on NASA Science, so the server
+reads today's APOD post from the science.nasa.gov API: the title, the explanation, the credit and the image. If
+that fails it tries the old APOD API on api.nasa.gov, and if that is down too it returns the latest picture of the
+whole Earth from NASA's EPIC camera on the DSCOVR spacecraft. The answer is cached for an hour, and if every
+source fails the last good picture is served. The launch page hides the section if there is nothing to show.
 
 ## Launch sequence
 

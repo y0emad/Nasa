@@ -69,7 +69,7 @@ const styles = (theme) => ({
 });
 
 const SOURCES = {
-  apod: { label: "Astronomy Picture of the Day", link: "Open on apod.nasa.gov" },
+  apod: { label: "Astronomy Picture of the Day", link: "Open on NASA Science" },
   epic: { label: "NASA EPIC camera", link: "More from EPIC" },
 };
 

@@ -27,11 +27,42 @@ const EPIC = [
   },
 ];
 
+const SCIENCE_POSTS = [
+  {
+    slug: 'hubble-image-of-the-week',
+    date: '2026-11-10T10:00:00',
+    link: 'https://science.nasa.gov/image-article/hubble-image-of-the-week/',
+    title: { rendered: 'Hubble image of the week' },
+    content: { rendered: '<p>Not an APOD</p>' },
+    featured_media: 7,
+  },
+  {
+    slug: 'apod-2026-november-10-saturn-behind-the-moon',
+    date: '2026-11-10T00:05:00',
+    link: 'https://science.nasa.gov/image-article/apod-2026-november-10-saturn-behind-the-moon/',
+    title: { rendered: 'APOD: 2026 November 10 &#8211; Saturn Behind the Moon' },
+    content: {
+      rendered:
+        '<p class="x"> <strong>Explanation:</strong> Sometimes <a href="#">Saturn</a> disappears. It doesn&#8217;t really go away &amp; returns. <br><br><strong>Tomorrow&#8217;s picture: </strong>small</p>' +
+        '<table><tr><th scope="row">Credit &amp; Copyright</th> <td class="p-sm"> <a href="#">Roberto Ortu</a> </td></tr></table>',
+    },
+    featured_media: 1509573,
+  },
+];
+
+const SCIENCE_IMAGE = 'https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/Moonsaturn.jpg';
+
 type Answer = { data: unknown } | Error;
 
-const mockNasa = (answers: { apod?: Answer; epic?: Answer }) =>
+const mockNasa = (answers: { science?: Answer; media?: Answer; apod?: Answer; epic?: Answer }) =>
   jest.spyOn(axios, 'get').mockImplementation((async (url: string) => {
-    const answer = url.includes('api.nasa.gov') ? answers.apod : answers.epic;
+    const answer = url.includes('/image-article')
+      ? answers.science
+      : url.includes('/media/')
+        ? answers.media
+        : url.includes('api.nasa.gov')
+          ? answers.apod
+          : answers.epic;
     if (!answer || answer instanceof Error) throw answer ?? new Error('not mocked');
     return answer;
   }) as typeof axios.get);
@@ -54,8 +85,32 @@ afterAll(async () => {
 });
 
 describe('GET /space-today', () => {
-  test('returns the Astronomy Picture of the Day in a clean shape', async () => {
-    mockNasa({ apod: { data: APOD } });
+  test("returns today's APOD from NASA Science, skipping posts that are not APOD", async () => {
+    mockNasa({ science: { data: SCIENCE_POSTS }, media: { data: { source_url: SCIENCE_IMAGE } } });
+    const response = await request(app).get('/space-today').expect(200);
+    expect(response.body).toEqual({
+      source: 'apod',
+      date: '2026-11-10',
+      title: 'Saturn Behind the Moon',
+      explanation: 'Sometimes Saturn disappears. It doesn’t really go away & returns.',
+      mediaType: 'image',
+      url: `${SCIENCE_IMAGE}?w=1280&h=1280&fit=clip`,
+      hdUrl: SCIENCE_IMAGE,
+      thumbnailUrl: `${SCIENCE_IMAGE}?w=600&h=600&fit=clip`,
+      copyright: 'Roberto Ortu',
+      sourceUrl: 'https://science.nasa.gov/image-article/apod-2026-november-10-saturn-behind-the-moon/',
+    });
+    expect(response.headers['cache-control']).toContain('max-age=1800');
+  });
+
+  test('uses the APOD API when NASA Science has no APOD post', async () => {
+    mockNasa({ science: { data: [SCIENCE_POSTS[0]] }, apod: { data: APOD } });
+    const response = await request(app).get('/space-today').expect(200);
+    expect(response.body.title).toBe('The Pillars of Creation');
+  });
+
+  test('uses the APOD API when NASA Science is down', async () => {
+    mockNasa({ science: new Error('timeout'), apod: { data: APOD } });
     const response = await request(app).get('/space-today').expect(200);
     expect(response.body).toEqual({
       source: 'apod',
@@ -85,13 +140,13 @@ describe('GET /space-today', () => {
   });
 
   test('asks NASA only once while the cached picture is fresh', async () => {
-    const get = mockNasa({ apod: { data: APOD } });
+    const get = mockNasa({ science: { data: SCIENCE_POSTS }, media: { data: { source_url: SCIENCE_IMAGE } } });
     await request(app).get('/space-today').expect(200);
     await request(app).get('/space-today').expect(200);
-    expect(get).toHaveBeenCalledTimes(1);
+    expect(get).toHaveBeenCalledTimes(2);
   });
 
-  test('returns 502 when both NASA sources fail and nothing is cached', async () => {
+  test('returns 502 when every NASA source fails and nothing is cached', async () => {
     mockNasa({ apod: new Error('timeout'), epic: new Error('timeout') });
     const response = await request(app).get('/space-today').expect(502);
     expect(response.body.msg).toMatch(/not available/);
