@@ -96,13 +96,77 @@ const fetchEpic = async () => {
   return fromEpic(response.data);
 };
 
+const SCIENCE_URL = 'https://science.nasa.gov/wp-json/wp/v2';
+
+const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+
+export const htmlToText = (html: string) =>
+  html
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCodePoint(parseInt(code, 16)))
+    .replace(/&([a-z]+);/gi, (match, name) => ENTITIES[name.toLowerCase()] ?? match)
+    .replace(/\s+/g, ' ')
+    .trim();
+
+interface SciencePost {
+  slug: string;
+  date: string;
+  link: string;
+  title: { rendered: string };
+  content: { rendered: string };
+  featured_media: number;
+}
+
+export const fromSciencePost = (post: SciencePost, media: { source_url?: string }): SpaceToday => {
+  const image = text(media?.source_url);
+  if (!image) throw new Error('The APOD post has no image');
+  const html = post.content.rendered;
+  const explanation = /<strong>\s*Explanation:\s*<\/strong>([\s\S]*?)(?:<strong>\s*Tomorrow|<\/p>)/i.exec(html)?.[1] ?? '';
+  const credit = /Credit[\s\S]{0,40}?Copyright\s*<\/th>\s*<td[^>]*>([\s\S]*?)<\/td>/i.exec(html)?.[1] ?? '';
+  return {
+    source: 'apod',
+    date: post.date.slice(0, 10),
+    title: htmlToText(post.title.rendered).replace(/^APOD:\s*\d{4}\s+\w+\s+\d{1,2}\s*[–—-]\s*/, ''),
+    explanation: htmlToText(explanation),
+    mediaType: 'image',
+    url: `${image}?w=1280&h=1280&fit=clip`,
+    hdUrl: image,
+    thumbnailUrl: `${image}?w=600&h=600&fit=clip`,
+    copyright: htmlToText(credit) || null,
+    sourceUrl: post.link,
+  };
+};
+
+const fetchScienceApod = async () => {
+  const list = await axios.get(`${SCIENCE_URL}/image-article`, {
+    params: { search: 'APOD', per_page: 5, _fields: 'slug,date,link,title,content,featured_media' },
+    timeout: 8000,
+  });
+  const post = (list.data as SciencePost[]).find((item) => /^apod-\d{4}-/.test(item.slug));
+  if (!post?.featured_media) throw new Error('NASA Science has no APOD post');
+  const media = await axios.get(`${SCIENCE_URL}/media/${post.featured_media}`, {
+    params: { _fields: 'source_url' },
+    timeout: 8000,
+  });
+  return fromSciencePost(post, media.data);
+};
+
+const reason = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 const fetchPicture = async () => {
+  try {
+    return await fetchScienceApod();
+  } catch (error) {
+    console.error(`NASA Science APOD failed, trying api.nasa.gov: ${reason(error)}`);
+  }
   try {
     return await fetchApod();
   } catch (error) {
-    console.error(`APOD request failed, trying EPIC: ${error instanceof Error ? error.message : error}`);
-    return fetchEpic();
+    console.error(`APOD request failed, trying EPIC: ${reason(error)}`);
   }
+  return fetchEpic();
 };
 
 const router = Router();
