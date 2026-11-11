@@ -138,15 +138,13 @@ const Paint = ({ surface, ...props }) =>
       {...props}
     />
   ) : (
-  <meshPhysicalMaterial
+  <meshStandardMaterial
     map={surface.map}
     roughnessMap={surface.roughnessMap}
     normalMap={surface.normalMap}
     normalScale={[0.6, 0.6]}
-    roughness={1}
+    roughness={0.85}
     metalness={0.05}
-    clearcoat={0.35}
-    clearcoatRoughness={0.4}
     {...props}
   />
 );

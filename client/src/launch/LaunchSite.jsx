@@ -551,7 +551,7 @@ export const LaunchSite = ({ sim, quality }) => (
     <Tower sim={sim} shadows={!quality.low} />
     <LightningMasts />
     <WaterTower />
-    <LightPoles count={quality.low ? 0 : 4} />
+    <LightPoles count={0} />
     <Buildings />
     <Trees count={quality.low ? 160 : 420} />
   </group>
