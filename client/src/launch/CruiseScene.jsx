@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Environment, Lightformer, OrbitControls, Stars } from "@react-three/drei";
 import { Bloom, EffectComposer, ToneMapping } from "@react-three/postprocessing";
@@ -7,6 +7,7 @@ import { AdditiveBlending, Vector3 } from "three";
 import { Spacecraft } from "./Rocket";
 import { glowTexture, usePlanetTexture } from "../solar/textures";
 import { graphicsProfile } from "../graphics";
+import { prepareRenderer, Warmup } from "./LaunchScene";
 
 const SUN = new Vector3(90, 35, 70);
 
@@ -62,8 +63,16 @@ const Craft = ({ reducedMotion }) => {
 const CruiseScene = () => {
   const quality = useMemo(graphicsProfile, []);
   const sunLight = useMemo(() => SUN.clone().normalize().multiplyScalar(20), []);
+  const [ready, setReady] = useState(false);
+  const markReady = useMemo(() => () => setReady(true), []);
   return (
-    <Canvas dpr={quality.dpr} camera={{ position: [3.4, 1.6, 5.2], fov: 45, near: 0.05, far: 2000 }} gl={{ antialias: quality.antialias }}>
+    <Canvas
+      dpr={quality.dpr}
+      frameloop={ready ? "always" : "never"}
+      camera={{ position: [3.4, 1.6, 5.2], fov: 45, near: 0.05, far: 2000 }}
+      gl={{ antialias: quality.antialias }}
+      onCreated={prepareRenderer}
+    >
       <color attach="background" args={["#000207"]} />
       <Environment resolution={64} frames={1}>
         <Lightformer form="circle" intensity={6} color="#fff3dc" position={sunLight} scale={6} />
@@ -90,6 +99,7 @@ const CruiseScene = () => {
           <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
         </EffectComposer>
       )}
+      <Warmup onReady={markReady} offscreen={!quality.low} />
     </Canvas>
   );
 };

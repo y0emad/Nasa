@@ -55,6 +55,8 @@ const LaunchSequence = ({ run, sounds, onClose, onViewUpcoming, onFlyTo }) => {
   const vibrate = useCallback((pattern) => !reducedMotion && navigator.vibrate?.(pattern), [reducedMotion]);
   const [telemetry, setTelemetry] = useState({ t: 0, phase: mode === "pad" ? "pad" : "countdown", altitude: 0, speed: 0 });
   const now = useNow(!live);
+  const [sceneReady, setSceneReady] = useState(mode === "cruise");
+  const onSceneReady = useCallback(() => setSceneReady(true), []);
   const played = useRef({});
   const audio = useRef(null);
   const lastBeep = useRef(null);
@@ -152,7 +154,9 @@ const LaunchSequence = ({ run, sounds, onClose, onViewUpcoming, onFlyTo }) => {
   const status =
     mode === "cruise" || phase === "orbit"
       ? `Spacecraft en route to ${run.destination}`
-      : STATUS[phase];
+      : !sceneReady && !scrubbed && telemetry.t >= 2.4
+        ? "Preparing the vehicle"
+        : STATUS[phase];
 
   return (
     <div
@@ -166,7 +170,7 @@ const LaunchSequence = ({ run, sounds, onClose, onViewUpcoming, onFlyTo }) => {
       {mode === "cruise" ? (
         <CruiseScene />
       ) : (
-        <LaunchScene outcome={run.status} onTelemetry={onTelemetry} label={run.rocket} mode={mode} />
+        <LaunchScene outcome={run.status} onTelemetry={onTelemetry} label={run.rocket} mode={mode} onReady={onSceneReady} />
       )}
 
       <div className="launch-hud">

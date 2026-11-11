@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment } from "@react-three/drei";
 import { Bloom, EffectComposer, ToneMapping, Vignette } from "@react-three/postprocessing";
 import { ToneMappingMode } from "postprocessing";
-import { AdditiveBlending, Color, FogExp2, MathUtils, NormalBlending, Vector3 } from "three";
+import { AdditiveBlending, Color, FogExp2, HalfFloatType, MathUtils, NormalBlending, Vector3, WebGLRenderTarget } from "three";
 import {
   FAIRING_BASE,
   FairingHalf,
@@ -31,6 +31,7 @@ export const TIMELINE = {
 };
 
 const SPACE = new Color("#000207");
+const WAIT_FOR_SCENE_AT = 2.5;
 
 const BURN = TIMELINE.seco - TIMELINE.liftoff;
 const shakeAt = (t, throttle) => {
@@ -410,7 +411,7 @@ const Director = ({ sim, outcomeRef, onTelemetry, label, quality, mode }) => {
       } else if (holding) {
         s0.phase = "hold";
       } else {
-        s0.t += dt;
+        if (s0.ready || s0.t < WAIT_FOR_SCENE_AT) s0.t += dt;
         s0.phase = phaseAt(s0.t);
       }
     }
@@ -568,7 +569,8 @@ const Lights = ({ quality }) => {
         shadow-camera-near={10}
         shadow-camera-far={180}
       />
-      <directionalLight position={[25, 12, 40]} intensity={0.35} color="#c9d6ff" />
+      <directionalLight position={[25, 12, 40]} intensity={0.7} color="#ffe9cf" />
+      <directionalLight position={[-20, 10, 30]} intensity={0.3} color="#c9d6ff" />
     </>
   );
 };
@@ -584,7 +586,59 @@ const Effects = ({ quality }) => {
   );
 };
 
-const LaunchScene = ({ outcome, onTelemetry, label, mode = "launch" }) => {
+export const prepareRenderer = ({ gl }) => {
+  gl.debug.checkShaderErrors = import.meta.env.DEV;
+};
+
+const MAX_WARMUP_MS = 6000;
+
+export const Warmup = ({ onReady, offscreen, content }) => {
+  const { gl, scene, camera } = useThree();
+  useEffect(() => {
+    let timer;
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      onReady();
+    };
+    const started = performance.now();
+    let pending;
+    const previous = gl.getRenderTarget();
+    const target = offscreen ? new WebGLRenderTarget(4, 4, { type: HalfFloatType }) : null;
+    const group = content?.current;
+    const wasVisible = group?.visible;
+    try {
+      if (group) group.visible = true;
+      if (target) gl.setRenderTarget(target);
+      pending = gl.compile(scene, camera);
+    } catch {
+      finish();
+      return undefined;
+    } finally {
+      if (group) group.visible = wasVisible;
+      gl.setRenderTarget(previous);
+      target?.dispose();
+    }
+    const check = () => {
+      pending.forEach((material) => {
+        const program = gl.properties.get(material).currentProgram;
+        if (!program?.program || program.isReady()) pending.delete(material);
+      });
+      if (pending.size === 0 || performance.now() - started > MAX_WARMUP_MS) finish();
+      else timer = setTimeout(check, 30);
+    };
+    timer = setTimeout(check, 0);
+    return () => {
+      finished = true;
+      clearTimeout(timer);
+    };
+  }, [gl, scene, camera, onReady, offscreen, content]);
+  return null;
+};
+
+const LaunchScene = ({ outcome, onTelemetry, label, mode = "launch", onReady }) => {
   const outcomeRef = useRef(outcome);
   outcomeRef.current = outcome;
   const sim = useRef({
@@ -598,25 +652,37 @@ const LaunchScene = ({ outcome, onTelemetry, label, mode = "launch" }) => {
     nozzle: new Vector3(0, 0.95, 0),
   });
   const quality = useMemo(graphicsProfile, []);
+  const [ready, setReady] = useState(false);
+  const content = useRef();
+  const markReady = useCallback(() => {
+    sim.current.ready = true;
+    setReady(true);
+    onReady?.();
+  }, [onReady]);
 
   return (
     <Canvas
+      className={`launch-canvas ${ready ? "is-ready" : ""}`}
       shadows={!quality.low}
       dpr={quality.dpr}
       camera={{ fov: 50, near: 0.3, far: 30000 }}
       gl={{ antialias: quality.antialias }}
+      onCreated={prepareRenderer}
     >
       <Environment resolution={128} frames={1}>
         <EnvironmentSky />
       </Environment>
-      <Lights quality={quality} />
-      <SkyDome sim={sim} low={quality.low} />
-      <SkyStars sim={sim} quality={quality} />
-      <LaunchSite sim={sim} quality={quality} />
-      <Smoke sim={sim} quality={quality} />
-      <Vent sim={sim} quality={quality} />
-      <Director sim={sim} outcomeRef={outcomeRef} onTelemetry={onTelemetry} label={label} quality={quality} mode={mode} />
+      <group ref={content} visible={ready}>
+        <Lights quality={quality} />
+        <SkyDome sim={sim} low={quality.low} />
+        <SkyStars sim={sim} quality={quality} />
+        <LaunchSite sim={sim} quality={quality} />
+        <Smoke sim={sim} quality={quality} />
+        <Vent sim={sim} quality={quality} />
+        <Director sim={sim} outcomeRef={outcomeRef} onTelemetry={onTelemetry} label={label} quality={quality} mode={mode} />
+      </group>
       <Effects quality={quality} />
+      <Warmup onReady={markReady} offscreen={!quality.low} content={content} />
     </Canvas>
   );
 };
